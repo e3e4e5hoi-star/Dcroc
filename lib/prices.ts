@@ -6,15 +6,20 @@ const CACHE_TTL = 60; // seconds
 export interface PriceMap { [symbol: string]: number; }
 
 export async function getPrices(): Promise<PriceMap> {
-  // Check cache
-  const cacheTs = await redis.get<number>(keys.priceTs());
-  if (cacheTs && Date.now() - cacheTs < CACHE_TTL * 1000) {
-    const raw = await redis.hgetall(keys.priceCache());
-    if (raw && Object.keys(raw).length > 0) {
-      return Object.fromEntries(
-        Object.entries(raw).map(([k, v]) => [k, parseFloat(v as string)])
-      );
+  // Redis may be temporarily unavailable during preview startup. Price fetching
+  // must still work without turning the whole page into a server error.
+  try {
+    const cacheTs = await redis.get<number>(keys.priceTs());
+    if (cacheTs && Date.now() - cacheTs < CACHE_TTL * 1000) {
+      const raw = await redis.hgetall(keys.priceCache());
+      if (raw && Object.keys(raw).length > 0) {
+        return Object.fromEntries(
+          Object.entries(raw).map(([k, v]) => [k, parseFloat(v as string)])
+        );
+      }
     }
+  } catch {
+    // Continue with the live CoinGecko request.
   }
 
   // Fetch from CoinGecko
@@ -43,9 +48,13 @@ export async function getPrices(): Promise<PriceMap> {
 
     return priceMap;
   } catch {
-    // Return cached prices even if stale
-    const raw = await redis.hgetall(keys.priceCache());
-    if (!raw) return {};
-    return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, parseFloat(v as string)]));
+    // Return cached prices even if stale, when Redis is available.
+    try {
+      const raw = await redis.hgetall(keys.priceCache());
+      if (!raw) return {};
+      return Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, parseFloat(v as string)]));
+    } catch {
+      return {};
+    }
   }
 }
