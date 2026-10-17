@@ -4,10 +4,42 @@ import { Redis } from '@upstash/redis';
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
 
-export const redis = new Redis({
-  url: redisUrl!,
-  token: redisToken!,
-});
+const fallbackHashes = new Map<string, Record<string, string>>();
+const fallbackValues = new Map<string, string>();
+const fallbackLists = new Map<string, string[]>();
+
+// Keep the preview usable while environment variables are being injected. A
+// configured deployment still uses Upstash for durable portfolio data.
+export const redis = redisUrl && redisToken
+  ? new Redis({ url: redisUrl, token: redisToken })
+  : {
+      async get<T>(key: string) { return (fallbackValues.get(key) as T | undefined) ?? null; },
+      async set(key: string, value: string | number) { fallbackValues.set(key, String(value)); return 'OK'; },
+      async hgetall(key: string) { return fallbackHashes.get(key) ?? {}; },
+      async hset(key: string, values: Record<string, string>) {
+        fallbackHashes.set(key, { ...(fallbackHashes.get(key) ?? {}), ...values });
+        return Object.keys(values).length;
+      },
+      async hdel(key: string, field: string) {
+        const hash = fallbackHashes.get(key) ?? {};
+        delete hash[field];
+        fallbackHashes.set(key, hash);
+        return 1;
+      },
+      async lpush(key: string, value: string) {
+        const list = fallbackLists.get(key) ?? [];
+        list.unshift(value);
+        fallbackLists.set(key, list);
+        return list.length;
+      },
+      async ltrim(key: string, start: number, end: number) {
+        fallbackLists.set(key, (fallbackLists.get(key) ?? []).slice(start, end + 1));
+        return 'OK';
+      },
+      async lrange(key: string, start: number, end: number) {
+        return (fallbackLists.get(key) ?? []).slice(start, end + 1);
+      },
+    };
 
 // ── Key helpers ───────────────────────────────────────────────────
 export const keys = {
