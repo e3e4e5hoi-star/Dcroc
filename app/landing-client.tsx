@@ -11,8 +11,8 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
       {/* Nav */}
       <nav className="flex items-center justify-between px-8 py-4 border-b border-[#1e2235]">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">⚡</span>
-          <span className="font-bold text-xl text-white">Swap<span className="text-blue-400">X</span></span>
+          <img src="/dcroc-logo.png" alt="Dcroc" className="h-9 w-9 rounded-full object-cover" />
+          <span className="font-bold text-xl text-white">Dcroc<span className="text-blue-400"> Exchange</span></span>
           <span className="ml-2 text-xs text-[#6b7280] border border-[#1e2235] px-2 py-0.5 rounded-full">BETA</span>
         </div>
         <button
@@ -60,7 +60,7 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
           </h1>
 
           <p className="text-[#9ca3af] text-lg mb-8 max-w-xl mx-auto">
-            SwapX combines a Centralized Exchange (CEX) order interface with a
+            Dcroc Exchange combines a Centralized Exchange (CEX) order interface with a
             Decentralized Exchange (DEX) AMM swap — powered by real-time prices,
             Redis portfolio tracking, and Google OAuth.
           </p>
@@ -93,7 +93,7 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
       </section>
 
       <footer className="border-t border-[#1e2235] px-8 py-4 flex items-center justify-between text-xs text-[#4b5563]">
-        <span>© 2026 SwapX · <a href="https://expediator.github.io/resume/" className="text-blue-400 hover:underline">expediator</a></span>
+        <span>© 2026 Dcroc Exchange · <a href="https://expediator.github.io/resume/" className="text-blue-400 hover:underline">expediator</a></span>
         <span>Demo — not financial advice</span>
       </footer>
     </div>

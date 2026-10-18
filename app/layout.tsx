@@ -3,11 +3,11 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'SwapX Exchange — DEX + CEX',
-  description: 'Trade crypto on a simulated DEX + CEX. Google OAuth, Redis-backed portfolio, 30+ tokens, real-time prices.',
+  title: 'Dcroc Exchange — DEX + CEX',
+  description: 'Dcroc Exchange: a simulated DEX + CEX with real token prices, Redis-backed portfolio, and secure Google sign-in.',
   openGraph: {
-    title: 'SwapX Exchange',
-    description: 'Simulated DEX + CEX with real token prices, 30+ tokens, Google OAuth.',
+    title: 'Dcroc Exchange',
+    description: 'Dcroc Exchange combines simulated DEX swaps and CEX trading with real token prices.',
     type: 'website',
   },
 };
