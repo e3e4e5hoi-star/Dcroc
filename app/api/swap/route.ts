@@ -13,13 +13,14 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const uid = user.id;
 
-  const { fromSym, toSym, fromAmt } = await req.json();
+  const body = await req.json().catch(() => null);
+  const { fromSym, toSym, fromAmt } = body ?? {};
 
-  if (!TOKEN_MAP[fromSym] || !TOKEN_MAP[toSym])
-    return NextResponse.json({ error: 'Unknown token' }, { status: 400 });
+  if (typeof fromSym !== 'string' || typeof toSym !== 'string' || !TOKEN_MAP[fromSym] || !TOKEN_MAP[toSym])
+    return NextResponse.json({ error: 'Unknown token pair' }, { status: 400 });
   if (fromSym === toSym)
     return NextResponse.json({ error: 'Cannot swap same token' }, { status: 400 });
-  if (!fromAmt || fromAmt <= 0)
+  if (typeof fromAmt !== 'number' || !Number.isFinite(fromAmt) || fromAmt <= 0 || fromAmt > 1_000_000_000)
     return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
 
   const [portfolio, prices] = await Promise.all([getPortfolio(uid), getPrices()]);

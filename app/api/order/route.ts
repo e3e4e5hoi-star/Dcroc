@@ -13,14 +13,21 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const uid = user.id;
 
-  const { side, baseSym, quoteSym, amount, orderType, limitPrice } = await req.json();
+  const body = await req.json().catch(() => null);
+  const { side, baseSym, quoteSym, amount, orderType, limitPrice } = body ?? {};
   // side: 'buy' | 'sell'
   // baseSym: e.g. 'ETH'  quoteSym: e.g. 'USDT'
   // amount: in base units for sell, in USD for buy
   // orderType: 'market' | 'limit'
 
-  if (!TOKEN_MAP[baseSym] || !TOKEN_MAP[quoteSym])
-    return NextResponse.json({ error: 'Unknown token' }, { status: 400 });
+  if ((side !== 'buy' && side !== 'sell') || (orderType !== 'market' && orderType !== 'limit'))
+    return NextResponse.json({ error: 'Invalid order' }, { status: 400 });
+  if (typeof baseSym !== 'string' || typeof quoteSym !== 'string' || !TOKEN_MAP[baseSym] || !TOKEN_MAP[quoteSym] || baseSym === quoteSym)
+    return NextResponse.json({ error: 'Unknown token pair' }, { status: 400 });
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000)
+    return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+  if (orderType === 'limit' && (typeof limitPrice !== 'number' || !Number.isFinite(limitPrice) || limitPrice <= 0))
+    return NextResponse.json({ error: 'Invalid limit price' }, { status: 400 });
 
   const [portfolio, prices] = await Promise.all([getPortfolio(uid), getPrices()]);
   const marketPrice = prices[baseSym];
