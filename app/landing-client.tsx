@@ -107,17 +107,17 @@ function OtpSignIn({ compact = false }: { compact?: boolean }) {
     if (!sent) {
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { shouldCreateUser: true },
       });
       setBusy(false);
-      if (error) return setMessage('ارسال کد انجام نشد. ایمیل را بررسی کنید.');
+      if (error) return setMessage('Could not send the code. Please check your email address.');
       setSent(true);
-      setMessage('کد تأیید به ایمیل شما ارسال شد.');
+      setMessage('A 6-digit verification code was sent to your email.');
       return;
     }
     const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
     setBusy(false);
-    if (error) return setMessage('کد واردشده معتبر نیست یا منقضی شده است.');
+    if (error) return setMessage('That code is invalid or expired. Please request a new one.');
     router.push('/dashboard');
     router.refresh();
   }
@@ -125,11 +125,11 @@ function OtpSignIn({ compact = false }: { compact?: boolean }) {
   return (
     <form onSubmit={submit} className={compact ? 'flex items-center gap-2' : 'mx-auto flex max-w-md flex-col gap-3'}>
       {!sent ? (
-        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="ایمیل شما" className={compact ? 'w-40 rounded-lg border border-[#1e2235] bg-[#151824] px-3 py-2 text-sm text-white outline-none' : 'rounded-xl border border-[#29304a] bg-[#151824] px-4 py-3 text-white outline-none focus:border-blue-500'} />
+        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Your email" className={compact ? 'w-40 rounded-lg border border-[#1e2235] bg-[#151824] px-3 py-2 text-sm text-white outline-none' : 'rounded-xl border border-[#29304a] bg-[#151824] px-4 py-3 text-white outline-none focus:border-blue-500'} />
       ) : (
-        <input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value)} placeholder="کد ۶ رقمی" className="rounded-xl border border-[#29304a] bg-[#151824] px-4 py-3 text-center tracking-[0.4em] text-white outline-none focus:border-blue-500" />
+        <input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value)} placeholder="6-digit code" className="rounded-xl border border-[#29304a] bg-[#151824] px-4 py-3 text-center tracking-[0.4em] text-white outline-none focus:border-blue-500" />
       )}
-      <button type="submit" disabled={busy} className={compact ? 'rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60' : 'rounded-xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg hover:bg-blue-500 disabled:opacity-60'}>{busy ? 'در حال ارسال...' : sent ? 'تأیید کد' : 'ورود با کد ایمیل'}</button>
+      <button type="submit" disabled={busy} className={compact ? 'rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60' : 'rounded-xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg hover:bg-blue-500 disabled:opacity-60'}>{busy ? 'Sending...' : sent ? 'Verify code' : 'Sign in with email code'}</button>
       {message && <p className="text-xs text-blue-300">{message}</p>}
     </form>
   );

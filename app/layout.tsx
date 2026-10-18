@@ -4,7 +4,7 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: 'Dcroc Exchange — DEX + CEX',
-  description: 'Dcroc Exchange: a simulated DEX + CEX with real token prices, Redis-backed portfolio, and secure Google sign-in.',
+  description: 'Dcroc Exchange: a simulated DEX + CEX with real token prices, Redis-backed portfolio, and secure email code sign-in.',
   openGraph: {
     title: 'Dcroc Exchange',
     description: 'Dcroc Exchange combines simulated DEX swaps and CEX trading with real token prices.',
