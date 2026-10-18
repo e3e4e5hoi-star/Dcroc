@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { getPortfolio, setBalance, logTx } from '@/lib/redis';
 import { getPrices } from '@/lib/prices';
 import { TOKEN_MAP } from '@/lib/tokens';
@@ -10,9 +9,9 @@ export const dynamic = 'force-dynamic';
 
 // DEX swap: from → to
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const uid = (session.user as { id?: string }).id!;
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const uid = user.id;
 
   const { fromSym, toSym, fromAmt } = await req.json();
 
