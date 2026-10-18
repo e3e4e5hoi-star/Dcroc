@@ -124,7 +124,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
         <div className="flex items-center gap-2">
-          <span className="text-xl">⚡</span>
+          <img src="/dcroc-logo.png" alt="Dcroc" className="h-7 w-7 rounded-full object-cover" />
           <span className="font-bold text-white">Swap<span className="text-blue-400">X</span></span>
         </div>
 
