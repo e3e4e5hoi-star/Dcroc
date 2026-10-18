@@ -1,13 +1,12 @@
-import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
-import { authOptions } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { LandingClient } from './landing-client';
 import { getPrices } from '@/lib/prices';
 import { TOKENS } from '@/lib/tokens';
 
 export default async function Home() {
-  const session = await getServerSession(authOptions);
-  if (session) redirect('/dashboard');
+  const user = await getCurrentUser();
+  if (user) redirect('/dashboard');
 
   // Fetch prices for the ticker (best-effort, can fail)
   let prices: Record<string, number> = {};
