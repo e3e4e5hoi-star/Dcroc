@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { keys, redis } from '@/lib/redis';
 import { createSession, normalizeEmail, type AuthUser } from '@/lib/auth';
+import { normalizeDigits } from '@/lib/normalize-digits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ function hashCode(email: string, code: string) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const email = normalizeEmail(body?.email);
-  const code = typeof body?.code === 'string' ? body.code.trim() : '';
+  const code = typeof body?.code === 'string' ? normalizeDigits(body.code.trim()) : '';
   if (!email || !/^\d{6}$/.test(code)) return NextResponse.json({ error: 'Enter the 6-digit verification code.' }, { status: 400 });
   const raw = await redis.get<string>(keys.authOtp(email));
   if (!raw) return NextResponse.json({ error: 'The code is missing or expired.' }, { status: 400 });
