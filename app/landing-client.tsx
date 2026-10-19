@@ -1,6 +1,5 @@
 'use client';
-import { useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 interface TickerToken { symbol: string; name: string; color: string; price: number; }
@@ -17,7 +16,7 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
           <span className="font-bold text-xl text-white">Dcroc<span className="text-blue-400"> Exchange</span></span>
           <span className="ml-2 text-xs text-[#6b7280] border border-[#1e2235] px-2 py-0.5 rounded-full">BETA</span>
         </div>
-        <OtpSignIn compact />
+        <GitHubSignIn compact />
       </nav>
 
       {/* Ticker */}
@@ -59,10 +58,10 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
           <p className="text-[#9ca3af] text-lg mb-8 max-w-xl mx-auto">
             Dcroc Exchange combines a Centralized Exchange (CEX) order interface with a
             Decentralized Exchange (DEX) AMM swap — powered by real-time prices,
-            Redis portfolio tracking, and secure email OTP sign-in.
+            Redis portfolio tracking, and secure GitHub sign-in.
           </p>
 
-          <OtpSignIn />
+          <GitHubSignIn />
 
           <p className="text-xs text-[#4b5563]">No crypto wallet needed · Simulated portfolio · Educational demo</p>
         </div>
@@ -91,48 +90,31 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
   );
 }
 
-function OtpSignIn({ compact = false }: { compact?: boolean }) {
-  const router = useRouter();
+function GitHubSignIn({ compact = false }: { compact?: boolean }) {
   const supabase = createClient();
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
-  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function signIn() {
     setBusy(true);
     setMessage('');
-    if (!sent) {
-      // Do not pass emailRedirectTo here: that opts Supabase into a magic-link
-      // email. The OTP flow must send the six-digit {{ .Token }} value instead.
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { shouldCreateUser: true },
-      });
+    const redirectTo = process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: { redirectTo },
+    });
+    if (error) {
       setBusy(false);
-      if (error) return setMessage('Could not send the code. Please check your email address.');
-      setSent(true);
-      setMessage('A 6-digit verification code was sent to your email.');
-      return;
+      setMessage('GitHub sign-in is temporarily unavailable.');
     }
-    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
-    setBusy(false);
-    if (error) return setMessage('That code is invalid or expired. Please request a new one.');
-    router.push('/dashboard');
-    router.refresh();
   }
 
   return (
-    <form onSubmit={submit} className={compact ? 'flex items-center gap-2' : 'mx-auto flex max-w-md flex-col gap-3'}>
-      {!sent ? (
-        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Your email" className={compact ? 'w-40 rounded-lg border border-[#1e2235] bg-[#151824] px-3 py-2 text-sm text-white outline-none' : 'rounded-xl border border-[#29304a] bg-[#151824] px-4 py-3 text-white outline-none focus:border-blue-500'} />
-      ) : (
-        <input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value)} placeholder="6-digit code" className="rounded-xl border border-[#29304a] bg-[#151824] px-4 py-3 text-center tracking-[0.4em] text-white outline-none focus:border-blue-500" />
-      )}
-      <button type="submit" disabled={busy} className={compact ? 'rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60' : 'rounded-xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg hover:bg-blue-500 disabled:opacity-60'}>{busy ? 'Sending...' : sent ? 'Verify code' : 'Sign in with email code'}</button>
-      {message && <p className="text-xs text-blue-300">{message}</p>}
-    </form>
+    <div className={compact ? 'flex items-center gap-2' : 'mx-auto flex max-w-md flex-col gap-3'}>
+      <button type="button" onClick={signIn} disabled={busy} className={compact ? 'rounded-lg bg-[#24292f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#30363d] disabled:opacity-60' : 'rounded-xl bg-[#24292f] px-6 py-3 font-bold text-white shadow-lg hover:bg-[#30363d] disabled:opacity-60'}>
+        {busy ? 'Connecting...' : 'Continue with GitHub'}
+      </button>
+      {message && <p role="alert" className="text-xs text-red-300">{message}</p>}
+    </div>
   );
 }
