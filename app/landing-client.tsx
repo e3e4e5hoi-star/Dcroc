@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { normalizeDigits } from '@/lib/normalize-digits';
 
 interface TickerToken { symbol: string; name: string; color: string; price: number; }
 
@@ -142,7 +141,7 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
         <div className="flex flex-col gap-2">
           <p className="text-sm text-gray-300">Enter the code sent to <span className="font-semibold text-white">{email}</span>.</p>
           <div className="flex gap-2">
-            <input dir="ltr" lang="en" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(normalizeDigits(e.target.value).replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code" aria-label="Verification code" className={`${inputClass} text-left font-mono tracking-[0.35em]`} onKeyDown={e => { if (e.key === 'Enter') void verifyCode(); }} />
+            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code" aria-label="Verification code" className={`${inputClass} tracking-[0.35em]`} onKeyDown={e => { if (e.key === 'Enter') void verifyCode(); }} />
             <button type="button" onClick={() => void verifyCode()} disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">{busy ? '...' : 'Verify'}</button>
           </div>
           <button type="button" onClick={() => { setSent(false); setCode(''); setMessage(''); }} className="self-start text-xs text-blue-400 hover:underline">Use another email / resend</button>
