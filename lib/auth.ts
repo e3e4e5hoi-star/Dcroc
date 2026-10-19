@@ -13,9 +13,9 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const raw = await redis.get<string | AuthUser>(keys.authSession(token));
+  const raw = await redis.get<string>(keys.authSession(token));
   if (!raw) return null;
-  try { return typeof raw === 'string' ? JSON.parse(raw) as AuthUser : raw; } catch { return null; }
+  try { return JSON.parse(raw) as AuthUser; } catch { return null; }
 }
 
 export async function createSession(user: AuthUser) {
