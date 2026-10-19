@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 interface TickerToken { symbol: string; name: string; color: string; price: number; }
@@ -95,10 +95,20 @@ function GitHubSignIn({ compact = false }: { compact?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
+  useEffect(() => {
+    const authError = new URLSearchParams(window.location.search).get('authError');
+    if (authError) {
+      setMessage(`GitHub sign-in failed: ${authError}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   async function signIn() {
     setBusy(true);
     setMessage('');
-    const redirectTo = process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ?? `${window.location.origin}/auth/callback`;
+    // Use the current public origin so custom domains and Vercel previews do not
+    // accidentally redirect to a stale localhost/development URL.
+    const redirectTo = `${window.location.origin}/auth/callback`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: { redirectTo },

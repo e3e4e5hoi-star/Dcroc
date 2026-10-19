@@ -1,7 +1,7 @@
 'use client';
 import { useState, useCallback, useRef } from 'react';
-import { signOut } from 'next-auth/react';
 import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
 import type { Token } from '@/lib/tokens';
 import type { TxRecord } from '@/lib/redis';
 
@@ -49,6 +49,7 @@ function TokenIcon({ token, size = 32 }: { token?: Token; size?: number }) {
 function pctChange() { return (Math.random() * 6 - 3).toFixed(2); } // simulated 24h change
 
 export function DashboardClient({ user, portfolio: initPortfolio, history: initHistory, prices: initPrices, totalUsd: initTotal, tokens }: Props) {
+  const supabase = createClient();
   const [tab, setTab] = useState<Tab>('dex');
   const [portfolio, setPortfolio] = useState(initPortfolio);
   const [history, setHistory] = useState(initHistory);
@@ -159,7 +160,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
             <div className="font-bold text-green-400">{fmt(totalUsd)}</div>
           </div>
           {user.image && <Image src={user.image} width={32} height={32} className="rounded-full" alt={user.name} />}
-          <button onClick={() => signOut({ callbackUrl: '/' })}
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.assign('/'); }}
             className="text-xs text-[#6b7280] hover:text-red-400 border border-[#1e2235] px-3 py-1.5 rounded-lg transition-colors">
             Sign out
           </button>
