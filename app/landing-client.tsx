@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 interface TickerToken { symbol: string; name: string; color: string; price: number; }
@@ -16,7 +16,7 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
           <span className="font-bold text-xl text-white">Dcroc<span className="text-blue-400"> Exchange</span></span>
           <span className="ml-2 text-xs text-[#6b7280] border border-[#1e2235] px-2 py-0.5 rounded-full">BETA</span>
         </div>
-        <GitHubSignIn compact />
+        <EmailAuth compact />
       </nav>
 
       {/* Ticker */}
@@ -58,10 +58,10 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
           <p className="text-[#9ca3af] text-lg mb-8 max-w-xl mx-auto">
             Dcroc Exchange combines a Centralized Exchange (CEX) order interface with a
             Decentralized Exchange (DEX) AMM swap — powered by real-time prices,
-            Redis portfolio tracking, and secure GitHub sign-in.
+            Redis portfolio tracking, and secure email verification.
           </p>
 
-          <GitHubSignIn />
+          <EmailAuth />
 
           <p className="text-xs text-[#4b5563]">No crypto wallet needed · Simulated portfolio · Educational demo</p>
         </div>
@@ -90,41 +90,75 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
   );
 }
 
-function GitHubSignIn({ compact = false }: { compact?: boolean }) {
+function EmailAuth({ compact = false }: { compact?: boolean }) {
   const supabase = createClient();
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const inputClass = 'w-full rounded-lg border border-[#2a3046] bg-[#0f1117] px-3 py-2 text-sm text-white outline-none focus:border-blue-400';
 
-  useEffect(() => {
-    const authError = new URLSearchParams(window.location.search).get('authError');
-    if (authError) {
-      setMessage(`GitHub sign-in failed: ${authError}`);
-      window.history.replaceState({}, '', window.location.pathname);
+  async function sendCode() {
+    if (!email.trim() || !email.includes('@')) {
+      setMessage('Enter a valid email address.');
+      return;
     }
-  }, []);
-
-  async function signIn() {
     setBusy(true);
     setMessage('');
-    // Use the current public origin so custom domains and Vercel previews do not
-    // accidentally redirect to a stale localhost/development URL.
-    const redirectTo = `${window.location.origin}/auth/callback`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: { redirectTo },
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: true },
     });
     if (error) {
-      setBusy(false);
-      setMessage('GitHub sign-in is temporarily unavailable.');
+      setMessage(error.message);
+    } else {
+      setSent(true);
+      setMessage('A 6-digit verification code was sent to your email.');
     }
+    setBusy(false);
+  }
+
+  async function verifyCode() {
+    if (!/^\d{6}$/.test(code)) {
+      setMessage('Enter the 6-digit verification code.');
+      return;
+    }
+    setBusy(true);
+    setMessage('');
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: code,
+      type: 'email',
+    });
+    if (error) {
+      setMessage(error.message);
+      setBusy(false);
+      return;
+    }
+    window.location.assign('/dashboard');
   }
 
   return (
-    <div className={compact ? 'flex items-center gap-2' : 'mx-auto flex max-w-md flex-col gap-3'}>
-      <button type="button" onClick={signIn} disabled={busy} className={compact ? 'rounded-lg bg-[#24292f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#30363d] disabled:opacity-60' : 'rounded-xl bg-[#24292f] px-6 py-3 font-bold text-white shadow-lg hover:bg-[#30363d] disabled:opacity-60'}>
-        {busy ? 'Connecting...' : 'Continue with GitHub'}
-      </button>
-      {message && <p role="alert" className="text-xs text-red-300">{message}</p>}
+    <div className={compact ? 'flex items-center gap-2' : 'mx-auto flex w-full max-w-md flex-col gap-3'}>
+      {!sent ? (
+        <div className={compact ? 'flex items-center gap-2' : 'flex flex-col gap-2'}>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" aria-label="Email address" className={compact ? `${inputClass} w-48` : inputClass} onKeyDown={e => { if (e.key === 'Enter') void sendCode(); }} />
+          <button type="button" onClick={() => void sendCode()} disabled={busy} className={compact ? 'rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60' : 'rounded-xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg hover:bg-blue-500 disabled:opacity-60'}>
+            {busy ? 'Sending...' : 'Continue with Email'}
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-gray-300">Enter the code sent to <span className="font-semibold text-white">{email}</span>.</p>
+          <div className="flex gap-2">
+            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code" aria-label="Verification code" className={`${inputClass} tracking-[0.35em]`} onKeyDown={e => { if (e.key === 'Enter') void verifyCode(); }} />
+            <button type="button" onClick={() => void verifyCode()} disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">{busy ? '...' : 'Verify'}</button>
+          </div>
+          <button type="button" onClick={() => { setSent(false); setCode(''); setMessage(''); }} className="self-start text-xs text-blue-400 hover:underline">Use another email / resend</button>
+        </div>
+      )}
+      {message && <p role="alert" className={`text-xs ${message.includes('sent') ? 'text-green-300' : 'text-red-300'}`}>{message}</p>}
     </div>
   );
 }
