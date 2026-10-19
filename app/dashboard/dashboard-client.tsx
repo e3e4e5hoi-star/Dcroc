@@ -31,6 +31,21 @@ function fmtAmt(n: number, sym: string) {
   return n.toFixed(3);
 }
 
+function TokenIcon({ token, size = 32 }: { token?: Token; size?: number }) {
+  if (!token) return <span className="inline-flex items-center justify-center rounded-full bg-[#252a3a] text-xs text-gray-400" style={{ width: size, height: size }}>?</span>;
+  return (
+    <img
+      src={`https://cdn.simpleicons.org/${token.symbol.toLowerCase()}`}
+      alt={`${token.name} logo`}
+      width={size}
+      height={size}
+      className="rounded-full object-contain bg-[#0f1117] p-0.5"
+      style={{ width: size, height: size }}
+      onError={(event) => { event.currentTarget.style.display = 'none'; }}
+    />
+  );
+}
+
 function pctChange() { return (Math.random() * 6 - 3).toFixed(2); } // simulated 24h change
 
 export function DashboardClient({ user, portfolio: initPortfolio, history: initHistory, prices: initPrices, totalUsd: initTotal, tokens }: Props) {
@@ -247,7 +262,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                           <tr key={t.symbol} className="border-b border-[#0f1117] hover:bg-[#0f1117] transition-colors">
                             <td className="py-2.5 pl-2">
                               <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: t.color }} />
+                                <TokenIcon token={t} size={28} />
                                 <span className="font-medium text-white">{t.symbol}</span>
                                 <span className="text-[#6b7280] text-xs hidden sm:inline">{t.name}</span>
                               </div>
@@ -432,8 +447,8 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                   {tokens.filter(t => t.type !== 'stable').map(t => (
                     <button key={t.symbol} onClick={() => setCexBase(t.symbol)}
                       className={`p-2 rounded-xl text-xs font-medium transition-all text-center ${cexBase === t.symbol ? 'ring-1 ring-blue-400 bg-blue-900/20' : 'bg-[#0f1117] hover:bg-[#1e2235]'}`}>
-                      <div className="w-2 h-2 rounded-full mx-auto mb-1" style={{ background: t.color }} />
-                      <div className="text-white">{t.symbol}</div>
+                      <TokenIcon token={t} size={32} />
+                      <div className="text-white mt-1">{t.symbol}</div>
                       <div className="text-[#6b7280]" style={{ fontSize: '10px' }}>{prices[t.symbol] ? fmt(prices[t.symbol]) : '—'}</div>
                     </button>
                   ))}
@@ -443,7 +458,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
           </div>
         )}
 
-        {/* ── PORTFOLIO ─────────────────────────────────────────────── */}
+        {/* ── PORTFOLIO ────────────────────────────��────────────────── */}
         {tab === 'portfolio' && (
           <div className="space-y-4">
             {/* Summary */}
@@ -483,7 +498,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                         <tr key={sym} className="border-b border-[#0f1117] hover:bg-[#0f1117] transition-colors">
                           <td className="py-2.5 pl-2">
                             <div className="flex items-center gap-2">
-                              <span className="w-2 h-2 rounded-full" style={{ background: tokens.find(t=>t.symbol===sym)?.color ?? '#888' }} />
+                              <TokenIcon token={tokens.find(t => t.symbol === sym)} size={28} />
                               <span className="font-medium text-white">{sym}</span>
                             </div>
                           </td>
