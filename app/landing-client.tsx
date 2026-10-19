@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 
 interface TickerToken { symbol: string; name: string; color: string; price: number; }
 
@@ -91,7 +90,6 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
 }
 
 function EmailAuth({ compact = false }: { compact?: boolean }) {
-  const supabase = createClient();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [sent, setSent] = useState(false);
@@ -106,16 +104,10 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
     }
     setBusy(true);
     setMessage('');
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: { shouldCreateUser: true },
-    });
-    if (error) {
-      setMessage(error.message);
-    } else {
-      setSent(true);
-      setMessage('A 6-digit verification code was sent to your email.');
-    }
+    const response = await fetch('/api/auth/request-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) setMessage(result.error ?? 'Could not send the verification code.');
+    else { setSent(true); setMessage('A 6-digit verification code was sent to your email.'); }
     setBusy(false);
   }
 
@@ -126,13 +118,10 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
     }
     setBusy(true);
     setMessage('');
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: code,
-      type: 'email',
-    });
-    if (error) {
-      setMessage(error.message);
+    const response = await fetch('/api/auth/verify-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setMessage(result.error ?? 'Invalid verification code.');
       setBusy(false);
       return;
     }
