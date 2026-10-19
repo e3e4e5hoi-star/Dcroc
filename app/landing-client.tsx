@@ -105,9 +105,15 @@ function OtpSignIn({ compact = false }: { compact?: boolean }) {
     setBusy(true);
     setMessage('');
     if (!sent) {
+      const redirectUrl =
+        process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL ??
+        `${window.location.origin}/auth/callback`;
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { shouldCreateUser: true },
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: redirectUrl,
+        },
       });
       setBusy(false);
       if (error) return setMessage('Could not send the code. Please check your email address.');
