@@ -13,7 +13,7 @@ interface Props {
   tokens:     Token[];
 }
 
-type Tab = 'dex' | 'cex' | 'margin' | 'portfolio' | 'history';
+type Tab = 'dex' | 'cex' | 'margin' | 'wallet' | 'portfolio' | 'history';
 
 function fmt(n: number, d = 2) {
   if (n >= 1e9)  return '$' + (n / 1e9).toFixed(2) + 'B';
@@ -34,7 +34,7 @@ function TokenIcon({ token, size = 32 }: { token?: Token; size?: number }) {
   if (!token) return <span className="inline-flex items-center justify-center rounded-full bg-[#252a3a] text-xs text-gray-400" style={{ width: size, height: size }}>?</span>;
   return (
     <img
-      src={`https://cdn.simpleicons.org/${token.symbol.toLowerCase()}`}
+      src={token.imageUrl ?? `https://cdn.simpleicons.org/${token.symbol.toLowerCase()}`}
       alt={`${token.name} logo`}
       width={size}
       height={size}
@@ -77,6 +77,11 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const [marginUsd, setMarginUsd] = useState('25');
   const [marginStop, setMarginStop] = useState('');
   const [marginLoading, setMarginLoading] = useState(false);
+  const [walletAsset, setWalletAsset] = useState('BTC');
+  const [walletData, setWalletData] = useState<{ address?: { address: string; tag?: string; memo?: string; method?: string }; deposits?: Array<{ txid: string; amount: string; status: string; time: number }> } | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawAddress, setWithdrawAddress] = useState('');
 
   const notify = (text: string, ok: boolean) => {
     setMsg({ text, ok });
@@ -140,6 +145,25 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
       setMarginStop('');
     } finally { setMarginLoading(false); }
   };
+  const loadWallet = async (asset = walletAsset) => {
+    setWalletLoading(true);
+    try {
+      const res = await fetch(`/api/wallet?asset=${asset}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return notify(data.error ?? 'Could not load wallet.', false);
+      setWalletData(data);
+    } finally { setWalletLoading(false); }
+  };
+  const requestWithdrawal = async () => {
+    const amount = Number(withdrawAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !withdrawAddress.trim()) return notify('Enter a valid amount and destination address.', false);
+    if (!window.confirm(`Create a withdrawal request for ${amount} ${walletAsset}? It will be reviewed before Kraken sends funds.`)) return;
+    const res = await fetch('/api/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset: walletAsset, amount, address: withdrawAddress.trim() }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return notify(data.error ?? 'Withdrawal request failed.', false);
+    notify('Withdrawal request submitted for review.', true);
+    setWithdrawAmount(''); setWithdrawAddress('');
+  };
 
   const dexOutAmt = dexAmt && prices[dexFrom] && prices[dexTo]
     ? ((parseFloat(dexAmt) * prices[dexFrom] * 0.997) / prices[dexTo]).toFixed(6)
@@ -168,7 +192,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
         {/* Tabs */}
         <div className="flex w-full sm:w-auto gap-1 overflow-x-auto bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
-          {([['dex','🔄 DEX'], ['cex','🏛 CEX'], ['margin','⚡ Margin 3x'], ['portfolio','📊 Portfolio'], ['history','📋 History']] as [Tab,string][]).map(([t, label]) => (
+          {([['dex','🔄 DEX'], ['cex','🏛 CEX'], ['margin','⚡ Margin 3x'], ['wallet','💼 Wallet'], ['portfolio','📊 Portfolio'], ['history','📋 History']] as [Tab,string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`shrink-0 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${tab === t ? 'bg-[#1e2235] text-blue-400' : 'text-[#6b7280] hover:text-gray-300'}`}>
               {label}
@@ -481,6 +505,29 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
           </div>
         )}
 
+        {/* ── KRAKEN-CUSTODY WALLET ───────────────────────────────── */}
+        {tab === 'wallet' && (
+          <div className="space-y-4">
+            <div className="glass rounded-2xl p-4 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div><h2 className="text-xl font-bold text-white">Wallet & Deposits</h2><p className="text-xs text-[#6b7280]">Assets are held by Kraken. Deposits are credited after address matching and confirmation review.</p></div>
+                <div className="flex items-center gap-2"><select value={walletAsset} onChange={e => { setWalletAsset(e.target.value); setWalletData(null); }} className="input-dark w-32 cursor-pointer">{tokens.filter(t => ['BTC','ETH','SOL','USDT','USDC','XRP','DOGE','LTC'].includes(t.symbol)).map(t => <option key={t.symbol}>{t.symbol}</option>)}</select><button onClick={() => void loadWallet()} disabled={walletLoading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">{walletLoading ? 'Loading…' : 'Load address'}</button></div>
+              </div>
+              {!walletData ? <div className="py-12 text-center text-sm text-[#6b7280]">Select an asset and load its Kraken deposit address.</div> : (
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-blue-500/30 bg-blue-950/20 p-4">
+                    <div className="mb-3 flex items-center gap-3"><TokenIcon token={tokens.find(t => t.symbol === walletAsset)} size={40} /><div><div className="font-semibold text-white">Deposit {walletAsset}</div><div className="text-xs text-[#6b7280]">Network: {walletData.address?.method ?? 'Kraken selected'}</div></div></div>
+                    <div className="break-all rounded-xl bg-[#0a0b10] p-3 font-mono text-xs text-blue-200">{walletData.address?.address ?? 'No address returned'}</div>
+                    {(walletData.address?.tag || walletData.address?.memo) && <div className="mt-2 rounded-lg bg-amber-950/30 p-2 text-xs text-amber-200">Memo/Tag: <span className="font-mono font-bold">{walletData.address.tag ?? walletData.address.memo}</span></div>}
+                    <p className="mt-3 text-[11px] text-amber-200/80">Send only {walletAsset} on the displayed network. Sending another asset or network may permanently lose funds.</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#1e2235] bg-[#0f1117] p-4"><h3 className="mb-3 font-semibold text-white">Recent deposits</h3>{walletData.deposits?.length ? walletData.deposits.slice(0, 5).map(d => <div key={d.txid} className="flex justify-between border-b border-[#1e2235] py-2 text-xs"><span className="font-mono text-gray-300">{d.txid.slice(0, 10)}…</span><span className="text-right"><span className="block text-green-400">{d.amount} {walletAsset}</span><span className="text-[#6b7280]">{d.status}</span></span></div>) : <p className="py-8 text-center text-xs text-[#6b7280]">No deposits found yet.</p>}</div>
+                </div>
+              )}
+            </div>
+            <div className="glass rounded-2xl p-4 sm:p-6"><h3 className="font-semibold text-white">Withdrawal request</h3><p className="mt-1 text-xs text-[#6b7280]">Requests are held for review and are not sent automatically from a user button.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><input type="number" min="0" step="any" placeholder={`Amount in ${walletAsset}`} value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="input-dark" /><input placeholder="Destination address" value={withdrawAddress} onChange={e => setWithdrawAddress(e.target.value)} className="input-dark" /></div><button onClick={() => void requestWithdrawal()} className="mt-3 rounded-lg border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-950/40">Submit for review</button></div>
+          </div>
+        )}
         {/* ── REAL KRAKEN SPOT MARGIN ──────────────────────────────── */}
         {tab === 'margin' && (
           <div className="mx-auto max-w-2xl space-y-4">

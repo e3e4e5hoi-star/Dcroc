@@ -26,6 +26,41 @@ function pairCode(base: string, quote: string) {
   return `${ASSET_CODES[base] ?? base}${ASSET_CODES[quote] ?? quote}`
 }
 
+const ASSET_CODES_FUNDING: Record<string, string> = { BTC: "XBT", ETH: "ETH", SOL: "SOL", USDT: "USDT", USDC: "USDC", XRP: "XRP", DOGE: "DOGE", LTC: "LTC" }
+function fundingAsset(symbol: string) { return ASSET_CODES_FUNDING[symbol.toUpperCase()] ?? symbol.toUpperCase() }
+
+async function privateRequest<T>(path: string, values: Record<string, string> = {}) {
+  const { key, secret } = getCredentials()
+  const nonce = Date.now() * 1000
+  const params = new URLSearchParams({ nonce: String(nonce), ...values })
+  const body = params.toString()
+  const hash = crypto.createHash("sha256").update(nonce + body).digest()
+  const signature = crypto.createHmac("sha512", Buffer.from(secret, "base64")).update(path + hash).digest("base64")
+  const response = await fetch(`${KRAKEN_API_URL}${path}`, { method: "POST", headers: { "API-Key": key, "API-Sign": signature, "Content-Type": "application/x-www-form-urlencoded" }, body, cache: "no-store" })
+  if (!response.ok) throw new Error(`Kraken HTTP error: ${response.status}`)
+  const result = (await response.json()) as { error?: string[]; result?: T }
+  if (result.error?.length) throw new Error(result.error.join(", "))
+  if (!result.result) throw new Error("Kraken returned no result")
+  return result.result
+}
+
+export async function getKrakenDepositMethods(symbol: string) {
+  return privateRequest<Array<{ method: string; limit?: string; fee?: string; minimum?: string; method_id?: string }>>("/0/private/DepositMethods", { asset: fundingAsset(symbol) })
+}
+
+export async function getKrakenDepositAddress(symbol: string, method: string) {
+  const asset = fundingAsset(symbol)
+  const existing = await privateRequest<Array<{ address: string; tag?: string; memo?: string; expiretm?: string }>>("/0/private/DepositAddresses", { asset, method, new: "false" })
+  if (existing.length > 0) return existing[0]
+  const created = await privateRequest<Array<{ address: string; tag?: string; memo?: string; expiretm?: string }>>("/0/private/DepositAddresses", { asset, method, new: "true" })
+  if (!created[0]) throw new Error("Kraken did not return a deposit address")
+  return created[0]
+}
+
+export async function getKrakenDepositStatus(symbol?: string) {
+  return privateRequest<Array<{ asset: string; method: string; refid: string; txid: string; info: string; amount: string; time: number; status: string }>>("/0/private/DepositStatus", symbol ? { asset: fundingAsset(symbol) } : {})
+}
+
 export async function placeKrakenOrder(input: {
   side: "buy" | "sell"
   baseSym: string
