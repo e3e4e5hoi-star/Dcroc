@@ -10,10 +10,14 @@ function hashCode(email: string, code: string) {
   return createHash('sha256').update(`${email}:${code}:${process.env.AUTH_SECRET ?? 'dcroc-otp'}`).digest('hex');
 }
 
+function normalizeDigits(value: string) {
+  return value.replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 1776)).replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 1632));
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const email = normalizeEmail(body?.email);
-  const code = typeof body?.code === 'string' ? body.code.trim() : '';
+  const code = typeof body?.code === 'string' ? normalizeDigits(body.code.trim()) : '';
   if (!email || !/^\d{6}$/.test(code)) return NextResponse.json({ error: 'Enter the 6-digit verification code.' }, { status: 400 });
   const raw = await redis.get<string>(keys.authOtp(email));
   if (!raw) return NextResponse.json({ error: 'The code is missing or expired.' }, { status: 400 });

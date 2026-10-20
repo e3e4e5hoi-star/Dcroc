@@ -96,6 +96,9 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const inputClass = 'w-full rounded-lg border border-[#2a3046] bg-[#0f1117] px-3 py-2 text-sm text-white outline-none focus:border-blue-400';
+  function normalizeDigits(value: string) {
+    return value.replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 1776)).replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 1632));
+  }
 
   async function sendCode() {
     if (!email.trim() || !email.includes('@')) {
@@ -112,13 +115,14 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
   }
 
   async function verifyCode() {
-    if (!/^\d{6}$/.test(code)) {
+    const normalizedCode = normalizeDigits(code);
+    if (!/^\d{6}$/.test(normalizedCode)) {
       setMessage('Enter the 6-digit verification code.');
       return;
     }
     setBusy(true);
     setMessage('');
-    const response = await fetch('/api/auth/verify-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code }) });
+    const response = await fetch('/api/auth/verify-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code: normalizedCode }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       setMessage(result.error ?? 'Invalid verification code.');
@@ -141,7 +145,7 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
         <div className="flex flex-col gap-2">
           <p className="text-sm text-gray-300">Enter the code sent to <span className="font-semibold text-white">{email}</span>.</p>
           <div className="flex gap-2">
-            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} placeholder="6-digit code" aria-label="Verification code" className={`${inputClass} tracking-[0.35em]`} onKeyDown={e => { if (e.key === 'Enter') void verifyCode(); }} />
+            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(normalizeDigits(e.target.value).replace(/\D/g, ''))} placeholder="6-digit code" aria-label="Verification code" className={`${inputClass} tracking-[0.35em]`} onKeyDown={e => { if (e.key === 'Enter') void verifyCode(); }} />
             <button type="button" onClick={() => void verifyCode()} disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">{busy ? '...' : 'Verify'}</button>
           </div>
           <button type="button" onClick={() => { setSent(false); setCode(''); setMessage(''); }} className="self-start text-xs text-blue-400 hover:underline">Use another email / resend</button>
