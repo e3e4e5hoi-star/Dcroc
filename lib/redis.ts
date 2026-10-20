@@ -71,7 +71,7 @@ export async function setBalance(uid: string, symbol: string, amount: number) {
 // ── Transaction log helpers ────────────────────────────────────────
 export interface TxRecord {
   id:        string;
-  type:      'swap' | 'buy' | 'sell';
+  type:      'swap' | 'buy' | 'sell' | 'withdrawal';
   fromSym:   string;
   toSym:     string;
   fromAmt:   number;

@@ -14,7 +14,9 @@ interface Props {
   tokens:     Token[];
 }
 
-type Tab = 'dex' | 'cex' | 'portfolio' | 'history';
+type Tab = 'dex' | 'cex' | 'portfolio' | 'wallet' | 'history';
+
+const supportedWithdrawalTokens = ['USDT', 'USDC', 'BTC', 'ETH', 'SOL', 'RAIN'];
 
 function fmt(n: number, d = 2) {
   if (n >= 1e9)  return '$' + (n / 1e9).toFixed(2) + 'B';
@@ -73,6 +75,11 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const [cexLimit,  setCexLimit]  = useState('');
   const [cexLoading, setCexLoading] = useState(false);
 
+  const [withdrawSymbol, setWithdrawSymbol] = useState('USDT');
+  const [withdrawAddress, setWithdrawAddress] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
+
   const notify = (text: string, ok: boolean) => {
     setMsg({ text, ok });
     clearTimeout(msgTimer.current);
@@ -87,6 +94,20 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
     setHistory(d.history);
     setTotalUsd(d.totalUsd);
   }, []);
+
+  const doWithdraw = async () => {
+    const amount = Number(withdrawAmount);
+    if (!withdrawAddress.trim() || !Number.isFinite(amount) || amount <= 0) return notify('Enter a valid address and amount', false);
+    setWithdrawLoading(true);
+    try {
+      const res = await fetch('/api/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol: withdrawSymbol, address: withdrawAddress, amount }) });
+      const data = await res.json();
+      if (!res.ok) return notify(data.error ?? 'Withdrawal failed', false);
+      notify(`Withdrawal submitted for review · ${data.netAmount} ${withdrawSymbol}`, true);
+      setWithdrawAmount(''); setWithdrawAddress(''); await refreshPortfolio();
+    } catch { notify('Network error. Please try again.', false); }
+    finally { setWithdrawLoading(false); }
+  };
 
   // DEX swap
   const doSwap = async () => {
@@ -149,7 +170,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
         {/* Desktop tabs */}
         <nav aria-label="Primary navigation" className="hidden lg:flex gap-1 bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
-          {([['dex','Exchange'], ['cex','Trade'], ['portfolio','Portfolio'], ['history','Activity']] as [Tab,string][]).map(([t, label]) => (
+          {([['dex','Exchange'], ['cex','Trade'], ['portfolio','Portfolio'], ['wallet','Wallet'], ['history','Activity']] as [Tab,string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-[#1e2235] text-blue-400' : 'text-[#6b7280] hover:text-gray-300'}`}>
               {label}
@@ -195,7 +216,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
               <div className="truncate text-sm text-gray-200">{user.email}</div>
             </div>
             <nav aria-label="Mobile navigation" className="space-y-2">
-              {([['dex','Exchange','Swap assets and explore markets'], ['cex','Trade','Place Kraken spot orders'], ['portfolio','Portfolio','Review balances and allocation'], ['history','Activity','Track recent transactions']] as [Tab,string,string][]).map(([t, label, description]) => (
+              {([['dex','Exchange','Swap assets and explore markets'], ['cex','Trade','Place Kraken spot orders'], ['portfolio','Portfolio','Review balances and allocation'], ['wallet','Wallet','Send digital assets securely'], ['history','Activity','Track recent transactions']] as [Tab,string,string][]).map(([t, label, description]) => (
                 <button key={t} onClick={() => { setTab(t); setMenuOpen(false); }} className={`w-full rounded-2xl border px-4 py-3 text-left transition ${tab === t ? 'border-blue-500/50 bg-blue-500/10' : 'border-transparent hover:border-[#26304a] hover:bg-[#111522]'}`}>
                   <div className={`font-semibold ${tab === t ? 'text-blue-300' : 'text-white'}`}>{label}</div>
                   <div className="mt-0.5 text-xs text-[#6b7280]">{description}</div>
@@ -502,6 +523,27 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'wallet' && (
+          <div className="mx-auto max-w-xl space-y-4">
+            <div className="glass rounded-2xl p-5">
+              <h2 className="text-lg font-bold text-white">Send digital assets</h2>
+              <p className="mt-1 text-xs text-[#6b7280]">Withdrawals are held for admin review and are never sent automatically.</p>
+              <div className="mt-5 space-y-3">
+                <label className="block text-xs text-[#6b7280]">Asset</label>
+                <select value={withdrawSymbol} onChange={e => setWithdrawSymbol(e.target.value)} className="input-dark">
+                  {supportedWithdrawalTokens.filter(sym => tokens.some(t => t.symbol === sym)).map(sym => <option key={sym}>{sym}</option>)}
+                </select>
+                <label className="block text-xs text-[#6b7280]">Destination address</label>
+                <input value={withdrawAddress} onChange={e => setWithdrawAddress(e.target.value)} className="input-dark" placeholder="Paste wallet address" autoComplete="off" />
+                <label className="block text-xs text-[#6b7280]">Amount</label>
+                <input type="number" min="0" step="any" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="input-dark" placeholder="0.00" />
+                <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-xs text-yellow-200">Review the network and address carefully. A submitted request is deducted from your available balance and requires admin approval.</div>
+                <button onClick={doWithdraw} disabled={withdrawLoading} className="btn-swap">{withdrawLoading ? 'Submitting…' : 'Submit withdrawal request'}</button>
               </div>
             </div>
           </div>
