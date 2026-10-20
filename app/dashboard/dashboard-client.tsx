@@ -344,7 +344,13 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
             {/* Order panel */}
             <div className="w-80 flex-shrink-0 space-y-3">
               <div className="glass rounded-2xl p-5">
-                <h2 className="font-bold text-white text-lg mb-4">CEX Trade</h2>
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-bold text-white text-lg">CEX Trade</h2>
+                    <p className="mt-1 text-[11px] text-[#6b7280]">Kraken spot markets · protected execution</p>
+                  </div>
+                  <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-1 text-[10px] font-medium text-green-300">Risk controls on</span>
+                </div>
 
                 {/* Pair selector */}
                 <div className="flex gap-2 mb-4">

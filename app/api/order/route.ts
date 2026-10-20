@@ -30,9 +30,18 @@ export async function POST(req: NextRequest) {
   if (orderType === 'limit' && (typeof limitPrice !== 'number' || !Number.isFinite(limitPrice) || limitPrice <= 0))
     return NextResponse.json({ error: 'Invalid limit price' }, { status: 400 });
 
+  // Only stablecoin-quoted spot pairs are enabled until each market has been
+  // explicitly verified against Kraken's symbol and precision rules.
+  if (!TOKEN_MAP[quoteSym].type || TOKEN_MAP[quoteSym].type !== 'stable')
+    return NextResponse.json({ error: 'Only stablecoin quote markets are available' }, { status: 400 });
+
   const [portfolio, prices] = await Promise.all([getPortfolio(uid), getPrices()]);
   const marketPrice = prices[baseSym];
   if (!marketPrice) return NextResponse.json({ error: 'Price unavailable' }, { status: 503 });
+
+  const requestedNotional = side === 'buy' ? amount : amount * (limitPrice ?? marketPrice);
+  if (requestedNotional > 250)
+    return NextResponse.json({ error: 'Order value cannot exceed $250' }, { status: 400 });
 
   const quotePrice = prices[quoteSym] ?? 1;
   const quoteBal = portfolio[quoteSym] ?? 0;
