@@ -7,6 +7,8 @@ export interface Token {
   type:     'crypto' | 'stable' | 'defi';
   chain?:   string;
   imageUrl?: string;
+  platform?: string;
+  contractAddress?: string;
 }
 
 export const TOKENS: Token[] = [
@@ -29,6 +31,7 @@ export const TOKENS: Token[] = [
   { symbol: 'HBAR',  name: 'Hedera',            geckoId: 'hedera-hashgraph',               color: '#222', decimals: 8,    type: 'crypto' },
   { symbol: 'XMR',   name: 'Monero',             geckoId: 'monero',                          color: '#ff6600', decimals: 12,   type: 'crypto' },
   { symbol: 'RAIN',  name: 'Rain',               geckoId: 'rain',                            color: '#5c7cfa', decimals: 18,   type: 'crypto' },
+  { symbol: 'GRAM',  name: 'Gram',               geckoId: 'gram',                           color: '#2aabee', decimals: 9,    type: 'crypto', chain: 'TON', platform: 'the-open-network', contractAddress: 'EQCrMfDTMkf6JVdUFdZZcbDe7W-4JGDAZ1O1ruWwyWQa6pcO' },
   { symbol: 'COCO',  name: 'coco',               geckoId: 'coco-2',                         color: '#f59e0b', decimals: 18,   type: 'crypto', chain: 'BNB Chain' },
   // ── Layer-2 / EVM ────────────────────────────────────────────────
   { symbol: 'OP',    name: 'Optimism',          geckoId: 'optimism',                       color: '#ff0420', decimals: 18, type: 'crypto', chain: 'Optimism' },
