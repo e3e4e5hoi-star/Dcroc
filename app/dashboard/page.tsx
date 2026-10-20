@@ -4,6 +4,7 @@ import { getPortfolio, getTxHistory } from '@/lib/redis';
 import { getPrices } from '@/lib/prices';
 import { DashboardClient } from './dashboard-client';
 import { TOKENS } from '@/lib/tokens';
+import { getTokenImages } from '@/lib/token-images';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +13,11 @@ export default async function DashboardPage() {
   if (!user) redirect('/');
   const uid = user.id;
 
-  const [portfolio, history, prices] = await Promise.all([
+  const [portfolio, history, prices, tokenImages] = await Promise.all([
     getPortfolio(uid),
     getTxHistory(uid),
     getPrices(),
+    getTokenImages(),
   ]);
 
   const totalUsd = Object.entries(portfolio).reduce(
@@ -30,7 +32,7 @@ export default async function DashboardPage() {
       history={history}
       prices={prices}
       totalUsd={totalUsd}
-      tokens={TOKENS}
+      tokens={TOKENS.map(token => ({ ...token, imageUrl: tokenImages[token.geckoId] }))}
     />
   );
 }

@@ -1,6 +1,5 @@
 'use client';
 import { useState, useCallback, useRef } from 'react';
-import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import type { Token } from '@/lib/tokens';
 import type { TxRecord } from '@/lib/redis';
@@ -14,9 +13,7 @@ interface Props {
   tokens:     Token[];
 }
 
-type Tab = 'dex' | 'cex' | 'portfolio' | 'wallet' | 'history';
-
-const supportedWithdrawalTokens = ['USDT', 'USDC', 'BTC', 'ETH', 'SOL', 'RAIN'];
+type Tab = 'dex' | 'cex' | 'margin' | 'wallet' | 'portfolio' | 'history';
 
 function fmt(n: number, d = 2) {
   if (n >= 1e9)  return '$' + (n / 1e9).toFixed(2) + 'B';
@@ -37,7 +34,7 @@ function TokenIcon({ token, size = 32 }: { token?: Token; size?: number }) {
   if (!token) return <span className="inline-flex items-center justify-center rounded-full bg-[#252a3a] text-xs text-gray-400" style={{ width: size, height: size }}>?</span>;
   return (
     <img
-      src={`https://cdn.simpleicons.org/${token.symbol.toLowerCase()}`}
+      src={token.imageUrl ?? `https://cdn.simpleicons.org/${token.symbol.toLowerCase()}`}
       alt={`${token.name} logo`}
       width={size}
       height={size}
@@ -52,7 +49,6 @@ function pctChange() { return (Math.random() * 6 - 3).toFixed(2); } // simulated
 
 export function DashboardClient({ user, portfolio: initPortfolio, history: initHistory, prices: initPrices, totalUsd: initTotal, tokens }: Props) {
   const [tab, setTab] = useState<Tab>('dex');
-  const [menuOpen, setMenuOpen] = useState(false);
   const [portfolio, setPortfolio] = useState(initPortfolio);
   const [history, setHistory] = useState(initHistory);
   const [prices] = useState(initPrices);
@@ -74,11 +70,18 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const [cexType,   setCexType]   = useState<'market'|'limit'>('market');
   const [cexLimit,  setCexLimit]  = useState('');
   const [cexLoading, setCexLoading] = useState(false);
-
-  const [withdrawSymbol, setWithdrawSymbol] = useState('USDT');
-  const [withdrawAddress, setWithdrawAddress] = useState('');
+  // Real Kraken Spot Margin (hard risk caps: 3x / $250 notional)
+  const [marginBase, setMarginBase] = useState('ETH');
+  const [marginQuote, setMarginQuote] = useState('USDT');
+  const [marginSide, setMarginSide] = useState<'long' | 'short'>('long');
+  const [marginUsd, setMarginUsd] = useState('25');
+  const [marginStop, setMarginStop] = useState('');
+  const [marginLoading, setMarginLoading] = useState(false);
+  const [walletAsset, setWalletAsset] = useState('BTC');
+  const [walletData, setWalletData] = useState<{ address?: { address: string; tag?: string; memo?: string; method?: string }; deposits?: Array<{ txid: string; amount: string; status: string; time: number }> } | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [withdrawAddress, setWithdrawAddress] = useState('');
 
   const notify = (text: string, ok: boolean) => {
     setMsg({ text, ok });
@@ -94,20 +97,6 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
     setHistory(d.history);
     setTotalUsd(d.totalUsd);
   }, []);
-
-  const doWithdraw = async () => {
-    const amount = Number(withdrawAmount);
-    if (!withdrawAddress.trim() || !Number.isFinite(amount) || amount <= 0) return notify('Enter a valid address and amount', false);
-    setWithdrawLoading(true);
-    try {
-      const res = await fetch('/api/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol: withdrawSymbol, address: withdrawAddress, amount }) });
-      const data = await res.json();
-      if (!res.ok) return notify(data.error ?? 'Withdrawal failed', false);
-      notify(`Withdrawal submitted for review · ${data.netAmount} ${withdrawSymbol}`, true);
-      setWithdrawAmount(''); setWithdrawAddress(''); await refreshPortfolio();
-    } catch { notify('Network error. Please try again.', false); }
-    finally { setWithdrawLoading(false); }
-  };
 
   // DEX swap
   const doSwap = async () => {
@@ -139,6 +128,42 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
       await refreshPortfolio();
     } finally { setCexLoading(false); }
   };
+  const doMarginOrder = async () => {
+    const collateral = Number(marginUsd);
+    if (!Number.isFinite(collateral) || collateral < 5 || collateral * 3 > 250) return notify('Margin must be $5–$83.33 at the fixed 3x / $250 cap.', false);
+    const stopLoss = marginStop ? Number(marginStop) : undefined;
+    if (stopLoss !== undefined && (!Number.isFinite(stopLoss) || stopLoss <= 0)) return notify('Enter a valid stop-loss price.', false);
+    const notional = collateral * 3;
+    const confirmed = window.confirm(`REAL KRAKEN SPOT MARGIN ORDER\n\n${marginSide.toUpperCase()} ${marginBase}/${marginQuote}\nLeverage: 3x\nCollateral: $${collateral.toFixed(2)}\nNotional: $${notional.toFixed(2)}\n\nThis can lose real money. Send order?`);
+    if (!confirmed) return;
+    setMarginLoading(true);
+    try {
+      const res = await fetch('/api/margin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseSym: marginBase, quoteSym: marginQuote, side: marginSide, marginUsd: collateral, stopLoss }) });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) return notify(result.error ?? 'Margin order failed.', false);
+      notify(`REAL ${marginSide.toUpperCase()} sent · ${result.orderId} · ${result.leverage}x · $${result.notionalUsd.toFixed(2)} notional`, true);
+      setMarginStop('');
+    } finally { setMarginLoading(false); }
+  };
+  const loadWallet = async (asset = walletAsset) => {
+    setWalletLoading(true);
+    try {
+      const res = await fetch(`/api/wallet?asset=${asset}`, { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return notify(data.error ?? 'Could not load wallet.', false);
+      setWalletData(data);
+    } finally { setWalletLoading(false); }
+  };
+  const requestWithdrawal = async () => {
+    const amount = Number(withdrawAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !withdrawAddress.trim()) return notify('Enter a valid amount and destination address.', false);
+    if (!window.confirm(`Create a withdrawal request for ${amount} ${walletAsset}? It will be reviewed before Kraken sends funds.`)) return;
+    const res = await fetch('/api/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset: walletAsset, amount, address: withdrawAddress.trim() }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return notify(data.error ?? 'Withdrawal request failed.', false);
+    notify('Withdrawal request submitted for review.', true);
+    setWithdrawAmount(''); setWithdrawAddress('');
+  };
 
   const dexOutAmt = dexAmt && prices[dexFrom] && prices[dexTo]
     ? ((parseFloat(dexAmt) * prices[dexFrom] * 0.997) / prices[dexTo]).toFixed(6)
@@ -159,76 +184,34 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0a0b10' }}>
       {/* Header */}
-      <header className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
-        <div className="flex items-center gap-2 shrink-0">
-          <img src="/dcroc-logo.png" alt="Dcroc" className="h-8 w-8 rounded-full object-cover ring-1 ring-blue-500/40" />
-          <div>
-            <span className="font-bold text-white tracking-tight">Swap<span className="text-blue-400">X</span></span>
-            <span className="hidden sm:block text-[10px] text-[#6b7280] uppercase tracking-[0.18em]">Dcroc Exchange</span>
-          </div>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
+        <div className="flex items-center gap-2">
+          <img src="/dcroc-logo.png" alt="Dcroc" className="h-7 w-7 rounded-full object-cover" />
+          <span className="font-bold text-white">Swap<span className="text-blue-400">X</span></span>
         </div>
 
-        {/* Desktop tabs */}
-        <nav aria-label="Primary navigation" className="hidden lg:flex gap-1 bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
-          {([['dex','Exchange'], ['cex','Trade'], ['portfolio','Portfolio'], ['wallet','Wallet'], ['history','Activity']] as [Tab,string][]).map(([t, label]) => (
+        {/* Tabs */}
+        <div className="flex w-full sm:w-auto gap-1 overflow-x-auto bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
+          {([['dex','🔄 DEX'], ['cex','🏛 CEX'], ['margin','⚡ Margin 3x'], ['wallet','💼 Wallet'], ['portfolio','📊 Portfolio'], ['history','📋 History']] as [Tab,string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-[#1e2235] text-blue-400' : 'text-[#6b7280] hover:text-gray-300'}`}>
+              className={`shrink-0 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${tab === t ? 'bg-[#1e2235] text-blue-400' : 'text-[#6b7280] hover:text-gray-300'}`}>
               {label}
             </button>
           ))}
-        </nav>
+        </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="hidden sm:block text-right">
+        <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-3">
+          <div className="text-right">
             <div className="text-xs text-[#6b7280]">Portfolio</div>
             <div className="font-bold text-green-400">{fmt(totalUsd)}</div>
           </div>
-          {user.image && <Image src={user.image} width={32} height={32} className="rounded-full ring-1 ring-[#1e2235]" alt={user.name} />}
-          <button onClick={() => setMenuOpen(true)} aria-label="Open navigation menu" aria-expanded={menuOpen}
-            className="group flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-xl border border-[#26304a] bg-[#111522] transition hover:border-blue-500/60 hover:bg-blue-500/10 lg:hidden">
-            <span className="h-0.5 w-5 rounded-full bg-blue-300 transition group-hover:bg-white" />
-            <span className="h-0.5 w-5 rounded-full bg-blue-300 transition group-hover:bg-white" />
-            <span className="h-0.5 w-3.5 self-end rounded-full bg-blue-300 transition group-hover:bg-white" />
-          </button>
-          <button onClick={() => signOut({ callbackUrl: '/' })}
-            className="hidden lg:block text-xs text-[#6b7280] hover:text-red-400 border border-[#1e2235] px-3 py-1.5 rounded-lg transition-colors">
+          {user.image && <Image src={user.image} width={32} height={32} className="rounded-full" alt={user.name} />}
+          <button onClick={async () => { await fetch('/api/auth/signout', { method: 'POST' }); window.location.assign('/'); }}
+            className="text-xs text-[#6b7280] hover:text-red-400 border border-[#1e2235] px-3 py-1.5 rounded-lg transition-colors">
             Sign out
           </button>
         </div>
       </header>
-
-      {/* Mobile navigation drawer */}
-      {menuOpen && (
-        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
-          <button aria-label="Close navigation menu" onClick={() => setMenuOpen(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <aside className="absolute right-0 top-0 flex h-full w-[min(86vw,340px)] flex-col border-l border-[#26304a] bg-[#0d1019] p-5 shadow-2xl shadow-blue-950/30">
-            <div className="mb-8 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <img src="/dcroc-logo.png" alt="Dcroc" className="h-10 w-10 rounded-full ring-1 ring-blue-500/40" />
-                <div><div className="font-bold text-white">Swap<span className="text-blue-400">X</span></div><div className="text-[10px] uppercase tracking-[0.18em] text-[#6b7280]">Dcroc Exchange</div></div>
-              </div>
-              <button onClick={() => setMenuOpen(false)} aria-label="Close navigation menu" className="rounded-lg p-2 text-2xl leading-none text-[#9ca3af] hover:bg-[#1e2235] hover:text-white">×</button>
-            </div>
-            <div className="mb-6 rounded-2xl border border-[#1e2235] bg-[#111522] p-4">
-              <div className="text-xs text-[#6b7280]">Portfolio balance</div>
-              <div className="mt-1 text-2xl font-bold text-green-400 mono">{fmt(totalUsd)}</div>
-              <div className="mt-2 text-xs text-[#6b7280]">Connected account</div>
-              <div className="truncate text-sm text-gray-200">{user.email}</div>
-            </div>
-            <nav aria-label="Mobile navigation" className="space-y-2">
-              {([['dex','Exchange','Swap assets and explore markets'], ['cex','Trade','Place Kraken spot orders'], ['portfolio','Portfolio','Review balances and allocation'], ['wallet','Wallet','Send digital assets securely'], ['history','Activity','Track recent transactions']] as [Tab,string,string][]).map(([t, label, description]) => (
-                <button key={t} onClick={() => { setTab(t); setMenuOpen(false); }} className={`w-full rounded-2xl border px-4 py-3 text-left transition ${tab === t ? 'border-blue-500/50 bg-blue-500/10' : 'border-transparent hover:border-[#26304a] hover:bg-[#111522]'}`}>
-                  <div className={`font-semibold ${tab === t ? 'text-blue-300' : 'text-white'}`}>{label}</div>
-                  <div className="mt-0.5 text-xs text-[#6b7280]">{description}</div>
-                </button>
-              ))}
-            </nav>
-            <div className="mt-auto border-t border-[#1e2235] pt-4">
-              <button onClick={() => signOut({ callbackUrl: '/' })} className="w-full rounded-xl border border-red-500/20 px-4 py-3 text-left text-sm text-red-300 transition hover:bg-red-500/10">Sign out</button>
-            </div>
-          </aside>
-        </div>
-      )}
 
       {/* Notification */}
       {msg && (
@@ -237,13 +220,13 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
         </div>
       )}
 
-      <main className="flex-1 p-4 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-3 sm:p-4 max-w-7xl mx-auto w-full overflow-hidden">
 
         {/* ── DEX SWAP ──────────────────────────────────────────────── */}
         {tab === 'dex' && (
-          <div className="flex gap-4 h-full">
+          <div className="flex flex-col lg:flex-row gap-4 h-full">
             {/* Swap card */}
-            <div className="w-96 flex-shrink-0">
+            <div className="w-full lg:w-96 lg:flex-shrink-0">
               <div className="glass rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-bold text-white text-lg">DEX Swap</h2>
@@ -361,17 +344,11 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
         {/* ── CEX TRADE ─────────────────────────────────────────────── */}
         {tab === 'cex' && (
-          <div className="flex gap-4">
+          <div className="flex flex-col lg:flex-row gap-4">
             {/* Order panel */}
-            <div className="w-80 flex-shrink-0 space-y-3">
+            <div className="w-full lg:w-80 lg:flex-shrink-0 space-y-3">
               <div className="glass rounded-2xl p-5">
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-bold text-white text-lg">CEX Trade</h2>
-                    <p className="mt-1 text-[11px] text-[#6b7280]">Kraken spot markets · protected execution</p>
-                  </div>
-                  <span className="rounded-full border border-green-500/20 bg-green-500/10 px-2 py-1 text-[10px] font-medium text-green-300">Risk controls on</span>
-                </div>
+                <h2 className="font-bold text-white text-lg mb-4">CEX Trade</h2>
 
                 {/* Pair selector */}
                 <div className="flex gap-2 mb-4">
@@ -466,7 +443,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
             <div className="flex-1 space-y-3">
               <div className="glass rounded-2xl p-4">
                 <h3 className="font-semibold text-white mb-3">Order Book — {cexBase}/{cexQuote}</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Asks */}
                   <div>
                     <div className="text-xs text-[#6b7280] grid grid-cols-2 mb-2">
@@ -528,27 +505,56 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
           </div>
         )}
 
+        {/* ── KRAKEN-CUSTODY WALLET ───────────────────────────────── */}
         {tab === 'wallet' && (
-          <div className="mx-auto max-w-xl space-y-4">
-            <div className="glass rounded-2xl p-5">
-              <h2 className="text-lg font-bold text-white">Send digital assets</h2>
-              <p className="mt-1 text-xs text-[#6b7280]">Withdrawals are held for admin review and are never sent automatically.</p>
-              <div className="mt-5 space-y-3">
-                <label className="block text-xs text-[#6b7280]">Asset</label>
-                <select value={withdrawSymbol} onChange={e => setWithdrawSymbol(e.target.value)} className="input-dark">
-                  {supportedWithdrawalTokens.filter(sym => tokens.some(t => t.symbol === sym)).map(sym => <option key={sym}>{sym}</option>)}
-                </select>
-                <label className="block text-xs text-[#6b7280]">Destination address</label>
-                <input value={withdrawAddress} onChange={e => setWithdrawAddress(e.target.value)} className="input-dark" placeholder="Paste wallet address" autoComplete="off" />
-                <label className="block text-xs text-[#6b7280]">Amount</label>
-                <input type="number" min="0" step="any" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="input-dark" placeholder="0.00" />
-                <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-3 text-xs text-yellow-200">Review the network and address carefully. A submitted request is deducted from your available balance and requires admin approval.</div>
-                <button onClick={doWithdraw} disabled={withdrawLoading} className="btn-swap">{withdrawLoading ? 'Submitting…' : 'Submit withdrawal request'}</button>
+          <div className="space-y-4">
+            <div className="glass rounded-2xl p-4 sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div><h2 className="text-xl font-bold text-white">Wallet & Deposits</h2><p className="text-xs text-[#6b7280]">Assets are held by Kraken. Deposits are credited after address matching and confirmation review.</p></div>
+                <div className="flex items-center gap-2"><select value={walletAsset} onChange={e => { setWalletAsset(e.target.value); setWalletData(null); }} className="input-dark w-32 cursor-pointer">{tokens.filter(t => ['BTC','ETH','SOL','USDT','USDC','XRP','DOGE','LTC'].includes(t.symbol)).map(t => <option key={t.symbol}>{t.symbol}</option>)}</select><button onClick={() => void loadWallet()} disabled={walletLoading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">{walletLoading ? 'Loading…' : 'Load address'}</button></div>
               </div>
+              {!walletData ? <div className="py-12 text-center text-sm text-[#6b7280]">Select an asset and load its Kraken deposit address.</div> : (
+                <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl border border-blue-500/30 bg-blue-950/20 p-4">
+                    <div className="mb-3 flex items-center gap-3"><TokenIcon token={tokens.find(t => t.symbol === walletAsset)} size={40} /><div><div className="font-semibold text-white">Deposit {walletAsset}</div><div className="text-xs text-[#6b7280]">Network: {walletData.address?.method ?? 'Kraken selected'}</div></div></div>
+                    <div className="break-all rounded-xl bg-[#0a0b10] p-3 font-mono text-xs text-blue-200">{walletData.address?.address ?? 'No address returned'}</div>
+                    {(walletData.address?.tag || walletData.address?.memo) && <div className="mt-2 rounded-lg bg-amber-950/30 p-2 text-xs text-amber-200">Memo/Tag: <span className="font-mono font-bold">{walletData.address.tag ?? walletData.address.memo}</span></div>}
+                    <p className="mt-3 text-[11px] text-amber-200/80">Send only {walletAsset} on the displayed network. Sending another asset or network may permanently lose funds.</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#1e2235] bg-[#0f1117] p-4"><h3 className="mb-3 font-semibold text-white">Recent deposits</h3>{walletData.deposits?.length ? walletData.deposits.slice(0, 5).map(d => <div key={d.txid} className="flex justify-between border-b border-[#1e2235] py-2 text-xs"><span className="font-mono text-gray-300">{d.txid.slice(0, 10)}…</span><span className="text-right"><span className="block text-green-400">{d.amount} {walletAsset}</span><span className="text-[#6b7280]">{d.status}</span></span></div>) : <p className="py-8 text-center text-xs text-[#6b7280]">No deposits found yet.</p>}</div>
+                </div>
+              )}
+            </div>
+            <div className="glass rounded-2xl p-4 sm:p-6"><h3 className="font-semibold text-white">Withdrawal request</h3><p className="mt-1 text-xs text-[#6b7280]">Requests are held for review and are not sent automatically from a user button.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><input type="number" min="0" step="any" placeholder={`Amount in ${walletAsset}`} value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="input-dark" /><input placeholder="Destination address" value={withdrawAddress} onChange={e => setWithdrawAddress(e.target.value)} className="input-dark" /></div><button onClick={() => void requestWithdrawal()} className="mt-3 rounded-lg border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-950/40">Submit for review</button></div>
+          </div>
+        )}
+        {/* ── REAL KRAKEN SPOT MARGIN ──────────────────────────────── */}
+        {tab === 'margin' && (
+          <div className="mx-auto max-w-2xl space-y-4">
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-950/20 p-4 text-sm text-amber-200">
+              <div className="font-bold">Real-money Kraken Spot Margin</div>
+              <p className="mt-1 text-xs text-amber-100/80">Orders are sent to Kraken. Fixed safety caps: 3x leverage and $250 maximum notional per order. Only pairs Kraken marks as margin-enabled are accepted.</p>
+            </div>
+            <div className="glass rounded-2xl p-4 sm:p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div><h2 className="font-bold text-white text-lg">Spot Margin</h2><p className="text-xs text-[#6b7280]">Collateral × 3 = position notional</p></div>
+                <span className="rounded-full bg-amber-900/40 px-3 py-1 text-xs font-bold text-amber-300">3x MAX</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs text-[#6b7280] mb-1 block">Base asset</label><select value={marginBase} onChange={e => setMarginBase(e.target.value)} className="input-dark cursor-pointer">{tokens.filter(t => t.type !== 'stable').map(t => <option key={t.symbol}>{t.symbol}</option>)}</select></div>
+                <div><label className="text-xs text-[#6b7280] mb-1 block">Quote asset</label><select value={marginQuote} onChange={e => setMarginQuote(e.target.value)} className="input-dark cursor-pointer">{tokens.filter(t => ['USDT','USDC'].includes(t.symbol)).map(t => <option key={t.symbol}>{t.symbol}</option>)}</select></div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[#0f1117] p-1">{(['long', 'short'] as const).map(side => <button key={side} onClick={() => setMarginSide(side)} className={`rounded-lg py-2 text-sm font-semibold ${marginSide === side ? (side === 'long' ? 'bg-green-600 text-white' : 'bg-red-600 text-white') : 'text-[#6b7280]'}`}>{side === 'long' ? '▲ Long' : '▼ Short'}</button>)}</div>
+              <label className="mt-4 text-xs text-[#6b7280] mb-1 block">Collateral (USD value)</label>
+              <input type="number" min="5" max="83.33" step="0.01" value={marginUsd} onChange={e => setMarginUsd(e.target.value)} className="input-dark" />
+              <div className="mt-2 flex justify-between text-xs text-[#6b7280]"><span>Position notional</span><span className="mono text-white">${(Number(marginUsd || 0) * 3).toFixed(2)} / $250.00</span></div>
+              <label className="mt-4 text-xs text-[#6b7280] mb-1 block">Stop-loss price (recommended)</label>
+              <input type="number" min="0" step="any" placeholder="Optional — use Kraken price" value={marginStop} onChange={e => setMarginStop(e.target.value)} className="input-dark" />
+              <button onClick={doMarginOrder} disabled={marginLoading} className="mt-5 w-full rounded-lg bg-amber-600 px-5 py-3 font-bold text-white hover:bg-amber-500 disabled:opacity-60">{marginLoading ? '⏳ Sending to Kraken…' : `Send REAL ${marginSide.toUpperCase()} · 3x`}</button>
+              <p className="mt-3 text-center text-[11px] text-[#6b7280]">A confirmation dialog appears before Kraken receives the order.</p>
             </div>
           </div>
         )}
-
         {/* ── PORTFOLIO ────────────────────────────��────────────────── */}
         {tab === 'portfolio' && (
           <div className="space-y-4">

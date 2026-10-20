@@ -15,6 +15,7 @@ export const redis = redisUrl && redisToken
   : {
       async get<T>(key: string) { return (fallbackValues.get(key) as T | undefined) ?? null; },
       async set(key: string, value: string | number) { fallbackValues.set(key, String(value)); return 'OK'; },
+      async del(key: string) { fallbackValues.delete(key); fallbackHashes.delete(key); fallbackLists.delete(key); return 1; },
       async hgetall(key: string) { return fallbackHashes.get(key) ?? {}; },
       async hset(key: string, values: Record<string, string>) {
         fallbackHashes.set(key, { ...(fallbackHashes.get(key) ?? {}), ...values });
@@ -48,6 +49,12 @@ export const keys = {
   swaps:       (uid: string) => `user:${uid}:swaps`,
   priceCache:  () => 'prices:cache',
   priceTs:     () => 'prices:ts',
+  authOtp:     (email: string) => `auth:otp:${email}`,
+  authUser:    (id: string) => `auth:user:${id}`,
+  authByEmail: (email: string) => `auth:email:${email}`,
+  authSession: (token: string) => `auth:session:${token}`,
+  walletAddresses: (uid: string) => `user:${uid}:wallet:addresses`,
+  withdrawals: (uid: string) => `user:${uid}:wallet:withdrawals`,
 };
 
 // ── Portfolio helpers ─────────────────────────────────────────────

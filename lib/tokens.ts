@@ -6,6 +6,7 @@ export interface Token {
   decimals: number;
   type:     'crypto' | 'stable' | 'defi';
   chain?:   string;
+  imageUrl?: string;
 }
 
 export const TOKENS: Token[] = [

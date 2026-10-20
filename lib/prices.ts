@@ -1,5 +1,5 @@
 import { redis, keys } from './redis';
-import { GECKO_IDS, TOKEN_MAP, TOKENS } from './tokens';
+import { GECKO_IDS, TOKENS } from './tokens';
 
 const CACHE_TTL = 60; // seconds
 
