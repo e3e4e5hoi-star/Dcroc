@@ -50,6 +50,7 @@ function pctChange() { return (Math.random() * 6 - 3).toFixed(2); } // simulated
 
 export function DashboardClient({ user, portfolio: initPortfolio, history: initHistory, prices: initPrices, totalUsd: initTotal, tokens }: Props) {
   const [tab, setTab] = useState<Tab>('dex');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [portfolio, setPortfolio] = useState(initPortfolio);
   const [history, setHistory] = useState(initHistory);
   const [prices] = useState(initPrices);
@@ -137,34 +138,76 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0a0b10' }}>
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-          <img src="/dcroc-logo.png" alt="Dcroc" className="h-7 w-7 rounded-full object-cover" />
-          <span className="font-bold text-white">Swap<span className="text-blue-400">X</span></span>
+      <header className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
+        <div className="flex items-center gap-2 shrink-0">
+          <img src="/dcroc-logo.png" alt="Dcroc" className="h-8 w-8 rounded-full object-cover ring-1 ring-blue-500/40" />
+          <div>
+            <span className="font-bold text-white tracking-tight">Swap<span className="text-blue-400">X</span></span>
+            <span className="hidden sm:block text-[10px] text-[#6b7280] uppercase tracking-[0.18em]">Dcroc Exchange</span>
+          </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
-          {([['dex','🔄 DEX Swap'], ['cex','🏛 CEX Trade'], ['portfolio','📊 Portfolio'], ['history','📋 History']] as [Tab,string][]).map(([t, label]) => (
+        {/* Desktop tabs */}
+        <nav aria-label="Primary navigation" className="hidden lg:flex gap-1 bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
+          {([['dex','Exchange'], ['cex','Trade'], ['portfolio','Portfolio'], ['history','Activity']] as [Tab,string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-[#1e2235] text-blue-400' : 'text-[#6b7280] hover:text-gray-300'}`}>
               {label}
             </button>
           ))}
-        </div>
+        </nav>
 
-        <div className="flex items-center gap-3">
-          <div className="text-right">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden sm:block text-right">
             <div className="text-xs text-[#6b7280]">Portfolio</div>
             <div className="font-bold text-green-400">{fmt(totalUsd)}</div>
           </div>
-          {user.image && <Image src={user.image} width={32} height={32} className="rounded-full" alt={user.name} />}
+          {user.image && <Image src={user.image} width={32} height={32} className="rounded-full ring-1 ring-[#1e2235]" alt={user.name} />}
+          <button onClick={() => setMenuOpen(true)} aria-label="Open navigation menu" aria-expanded={menuOpen}
+            className="group flex h-10 w-10 flex-col items-center justify-center gap-1.5 rounded-xl border border-[#26304a] bg-[#111522] transition hover:border-blue-500/60 hover:bg-blue-500/10 lg:hidden">
+            <span className="h-0.5 w-5 rounded-full bg-blue-300 transition group-hover:bg-white" />
+            <span className="h-0.5 w-5 rounded-full bg-blue-300 transition group-hover:bg-white" />
+            <span className="h-0.5 w-3.5 self-end rounded-full bg-blue-300 transition group-hover:bg-white" />
+          </button>
           <button onClick={() => signOut({ callbackUrl: '/' })}
-            className="text-xs text-[#6b7280] hover:text-red-400 border border-[#1e2235] px-3 py-1.5 rounded-lg transition-colors">
+            className="hidden lg:block text-xs text-[#6b7280] hover:text-red-400 border border-[#1e2235] px-3 py-1.5 rounded-lg transition-colors">
             Sign out
           </button>
         </div>
       </header>
+
+      {/* Mobile navigation drawer */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
+          <button aria-label="Close navigation menu" onClick={() => setMenuOpen(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <aside className="absolute right-0 top-0 flex h-full w-[min(86vw,340px)] flex-col border-l border-[#26304a] bg-[#0d1019] p-5 shadow-2xl shadow-blue-950/30">
+            <div className="mb-8 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <img src="/dcroc-logo.png" alt="Dcroc" className="h-10 w-10 rounded-full ring-1 ring-blue-500/40" />
+                <div><div className="font-bold text-white">Swap<span className="text-blue-400">X</span></div><div className="text-[10px] uppercase tracking-[0.18em] text-[#6b7280]">Dcroc Exchange</div></div>
+              </div>
+              <button onClick={() => setMenuOpen(false)} aria-label="Close navigation menu" className="rounded-lg p-2 text-2xl leading-none text-[#9ca3af] hover:bg-[#1e2235] hover:text-white">×</button>
+            </div>
+            <div className="mb-6 rounded-2xl border border-[#1e2235] bg-[#111522] p-4">
+              <div className="text-xs text-[#6b7280]">Portfolio balance</div>
+              <div className="mt-1 text-2xl font-bold text-green-400 mono">{fmt(totalUsd)}</div>
+              <div className="mt-2 text-xs text-[#6b7280]">Connected account</div>
+              <div className="truncate text-sm text-gray-200">{user.email}</div>
+            </div>
+            <nav aria-label="Mobile navigation" className="space-y-2">
+              {([['dex','Exchange','Swap assets and explore markets'], ['cex','Trade','Place Kraken spot orders'], ['portfolio','Portfolio','Review balances and allocation'], ['history','Activity','Track recent transactions']] as [Tab,string,string][]).map(([t, label, description]) => (
+                <button key={t} onClick={() => { setTab(t); setMenuOpen(false); }} className={`w-full rounded-2xl border px-4 py-3 text-left transition ${tab === t ? 'border-blue-500/50 bg-blue-500/10' : 'border-transparent hover:border-[#26304a] hover:bg-[#111522]'}`}>
+                  <div className={`font-semibold ${tab === t ? 'text-blue-300' : 'text-white'}`}>{label}</div>
+                  <div className="mt-0.5 text-xs text-[#6b7280]">{description}</div>
+                </button>
+              ))}
+            </nav>
+            <div className="mt-auto border-t border-[#1e2235] pt-4">
+              <button onClick={() => signOut({ callbackUrl: '/' })} className="w-full rounded-xl border border-red-500/20 px-4 py-3 text-left text-sm text-red-300 transition hover:bg-red-500/10">Sign out</button>
+            </div>
+          </aside>
+        </div>
+      )}
 
       {/* Notification */}
       {msg && (
