@@ -13,7 +13,7 @@ interface Props {
   tokens:     Token[];
 }
 
-type Tab = 'dex' | 'cex' | 'portfolio' | 'history';
+type Tab = 'dex' | 'cex' | 'margin' | 'portfolio' | 'history';
 
 function fmt(n: number, d = 2) {
   if (n >= 1e9)  return '$' + (n / 1e9).toFixed(2) + 'B';
@@ -70,6 +70,13 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const [cexType,   setCexType]   = useState<'market'|'limit'>('market');
   const [cexLimit,  setCexLimit]  = useState('');
   const [cexLoading, setCexLoading] = useState(false);
+  // Real Kraken Spot Margin (hard risk caps: 3x / $250 notional)
+  const [marginBase, setMarginBase] = useState('ETH');
+  const [marginQuote, setMarginQuote] = useState('USDT');
+  const [marginSide, setMarginSide] = useState<'long' | 'short'>('long');
+  const [marginUsd, setMarginUsd] = useState('25');
+  const [marginStop, setMarginStop] = useState('');
+  const [marginLoading, setMarginLoading] = useState(false);
 
   const notify = (text: string, ok: boolean) => {
     setMsg({ text, ok });
@@ -116,6 +123,23 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
       await refreshPortfolio();
     } finally { setCexLoading(false); }
   };
+  const doMarginOrder = async () => {
+    const collateral = Number(marginUsd);
+    if (!Number.isFinite(collateral) || collateral < 5 || collateral * 3 > 250) return notify('Margin must be $5–$83.33 at the fixed 3x / $250 cap.', false);
+    const stopLoss = marginStop ? Number(marginStop) : undefined;
+    if (stopLoss !== undefined && (!Number.isFinite(stopLoss) || stopLoss <= 0)) return notify('Enter a valid stop-loss price.', false);
+    const notional = collateral * 3;
+    const confirmed = window.confirm(`REAL KRAKEN SPOT MARGIN ORDER\n\n${marginSide.toUpperCase()} ${marginBase}/${marginQuote}\nLeverage: 3x\nCollateral: $${collateral.toFixed(2)}\nNotional: $${notional.toFixed(2)}\n\nThis can lose real money. Send order?`);
+    if (!confirmed) return;
+    setMarginLoading(true);
+    try {
+      const res = await fetch('/api/margin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseSym: marginBase, quoteSym: marginQuote, side: marginSide, marginUsd: collateral, stopLoss }) });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) return notify(result.error ?? 'Margin order failed.', false);
+      notify(`REAL ${marginSide.toUpperCase()} sent · ${result.orderId} · ${result.leverage}x · $${result.notionalUsd.toFixed(2)} notional`, true);
+      setMarginStop('');
+    } finally { setMarginLoading(false); }
+  };
 
   const dexOutAmt = dexAmt && prices[dexFrom] && prices[dexTo]
     ? ((parseFloat(dexAmt) * prices[dexFrom] * 0.997) / prices[dexTo]).toFixed(6)
@@ -136,23 +160,23 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0a0b10' }}>
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <img src="/dcroc-logo.png" alt="Dcroc" className="h-7 w-7 rounded-full object-cover" />
           <span className="font-bold text-white">Swap<span className="text-blue-400">X</span></span>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
-          {([['dex','🔄 DEX Swap'], ['cex','🏛 CEX Trade'], ['portfolio','📊 Portfolio'], ['history','📋 History']] as [Tab,string][]).map(([t, label]) => (
+        <div className="flex w-full sm:w-auto gap-1 overflow-x-auto bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
+          {([['dex','🔄 DEX'], ['cex','🏛 CEX'], ['margin','⚡ Margin 3x'], ['portfolio','📊 Portfolio'], ['history','📋 History']] as [Tab,string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === t ? 'bg-[#1e2235] text-blue-400' : 'text-[#6b7280] hover:text-gray-300'}`}>
+              className={`shrink-0 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${tab === t ? 'bg-[#1e2235] text-blue-400' : 'text-[#6b7280] hover:text-gray-300'}`}>
               {label}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex w-full sm:w-auto items-center justify-between sm:justify-end gap-3">
           <div className="text-right">
             <div className="text-xs text-[#6b7280]">Portfolio</div>
             <div className="font-bold text-green-400">{fmt(totalUsd)}</div>
@@ -172,13 +196,13 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
         </div>
       )}
 
-      <main className="flex-1 p-4 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-3 sm:p-4 max-w-7xl mx-auto w-full overflow-hidden">
 
         {/* ── DEX SWAP ──────────────────────────────────────────────── */}
         {tab === 'dex' && (
-          <div className="flex gap-4 h-full">
+          <div className="flex flex-col lg:flex-row gap-4 h-full">
             {/* Swap card */}
-            <div className="w-96 flex-shrink-0">
+            <div className="w-full lg:w-96 lg:flex-shrink-0">
               <div className="glass rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-bold text-white text-lg">DEX Swap</h2>
@@ -296,9 +320,9 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
         {/* ── CEX TRADE ─────────────────────────────────────────────── */}
         {tab === 'cex' && (
-          <div className="flex gap-4">
+          <div className="flex flex-col lg:flex-row gap-4">
             {/* Order panel */}
-            <div className="w-80 flex-shrink-0 space-y-3">
+            <div className="w-full lg:w-80 lg:flex-shrink-0 space-y-3">
               <div className="glass rounded-2xl p-5">
                 <h2 className="font-bold text-white text-lg mb-4">CEX Trade</h2>
 
@@ -395,7 +419,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
             <div className="flex-1 space-y-3">
               <div className="glass rounded-2xl p-4">
                 <h3 className="font-semibold text-white mb-3">Order Book — {cexBase}/{cexQuote}</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Asks */}
                   <div>
                     <div className="text-xs text-[#6b7280] grid grid-cols-2 mb-2">
@@ -457,6 +481,33 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
           </div>
         )}
 
+        {/* ── REAL KRAKEN SPOT MARGIN ──────────────────────────────── */}
+        {tab === 'margin' && (
+          <div className="mx-auto max-w-2xl space-y-4">
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-950/20 p-4 text-sm text-amber-200">
+              <div className="font-bold">Real-money Kraken Spot Margin</div>
+              <p className="mt-1 text-xs text-amber-100/80">Orders are sent to Kraken. Fixed safety caps: 3x leverage and $250 maximum notional per order. Only pairs Kraken marks as margin-enabled are accepted.</p>
+            </div>
+            <div className="glass rounded-2xl p-4 sm:p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div><h2 className="font-bold text-white text-lg">Spot Margin</h2><p className="text-xs text-[#6b7280]">Collateral × 3 = position notional</p></div>
+                <span className="rounded-full bg-amber-900/40 px-3 py-1 text-xs font-bold text-amber-300">3x MAX</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-xs text-[#6b7280] mb-1 block">Base asset</label><select value={marginBase} onChange={e => setMarginBase(e.target.value)} className="input-dark cursor-pointer">{tokens.filter(t => t.type !== 'stable').map(t => <option key={t.symbol}>{t.symbol}</option>)}</select></div>
+                <div><label className="text-xs text-[#6b7280] mb-1 block">Quote asset</label><select value={marginQuote} onChange={e => setMarginQuote(e.target.value)} className="input-dark cursor-pointer">{tokens.filter(t => ['USDT','USDC'].includes(t.symbol)).map(t => <option key={t.symbol}>{t.symbol}</option>)}</select></div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[#0f1117] p-1">{(['long', 'short'] as const).map(side => <button key={side} onClick={() => setMarginSide(side)} className={`rounded-lg py-2 text-sm font-semibold ${marginSide === side ? (side === 'long' ? 'bg-green-600 text-white' : 'bg-red-600 text-white') : 'text-[#6b7280]'}`}>{side === 'long' ? '▲ Long' : '▼ Short'}</button>)}</div>
+              <label className="mt-4 text-xs text-[#6b7280] mb-1 block">Collateral (USD value)</label>
+              <input type="number" min="5" max="83.33" step="0.01" value={marginUsd} onChange={e => setMarginUsd(e.target.value)} className="input-dark" />
+              <div className="mt-2 flex justify-between text-xs text-[#6b7280]"><span>Position notional</span><span className="mono text-white">${(Number(marginUsd || 0) * 3).toFixed(2)} / $250.00</span></div>
+              <label className="mt-4 text-xs text-[#6b7280] mb-1 block">Stop-loss price (recommended)</label>
+              <input type="number" min="0" step="any" placeholder="Optional — use Kraken price" value={marginStop} onChange={e => setMarginStop(e.target.value)} className="input-dark" />
+              <button onClick={doMarginOrder} disabled={marginLoading} className="mt-5 w-full rounded-lg bg-amber-600 px-5 py-3 font-bold text-white hover:bg-amber-500 disabled:opacity-60">{marginLoading ? '⏳ Sending to Kraken…' : `Send REAL ${marginSide.toUpperCase()} · 3x`}</button>
+              <p className="mt-3 text-center text-[11px] text-[#6b7280]">A confirmation dialog appears before Kraken receives the order.</p>
+            </div>
+          </div>
+        )}
         {/* ── PORTFOLIO ────────────────────────────��────────────────── */}
         {tab === 'portfolio' && (
           <div className="space-y-4">
