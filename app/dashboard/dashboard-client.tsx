@@ -1,8 +1,9 @@
 'use client';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import type { Token } from '@/lib/tokens';
 import type { TxRecord } from '@/lib/redis';
+import { SupportAssistant } from '@/components/support-assistant';
 
 interface Props {
   user:       { name: string; email: string; image: string };
@@ -56,6 +57,11 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout>>();
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setScreenReady(true), 180);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // DEX state
   const [dexFrom, setDexFrom] = useState('USDT');
   const [dexTo,   setDexTo]   = useState('ETH');
@@ -80,6 +86,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const [walletAsset, setWalletAsset] = useState('BTC');
   const [walletData, setWalletData] = useState<{ address?: { address: string; tag?: string; memo?: string; method?: string }; deposits?: Array<{ txid: string; amount: string; status: string; time: number }> } | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
+  const [screenReady, setScreenReady] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawAddress, setWithdrawAddress] = useState('');
 
@@ -183,6 +190,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0a0b10' }}>
+      {!screenReady && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0a0b10]" aria-label="Loading exchange"><div className="flex flex-col items-center gap-4"><div className="h-10 w-10 animate-spin rounded-full border-2 border-blue-500/20 border-t-blue-400" /><div className="text-sm text-slate-400">Securing your trading workspace…</div></div></div>}
       {/* Header */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
         <div className="flex items-center gap-2">
@@ -666,6 +674,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
           </div>
         )}
       </main>
+      <SupportAssistant />
     </div>
   );
 }

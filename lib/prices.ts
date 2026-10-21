@@ -26,7 +26,7 @@ export async function getPrices(): Promise<PriceMap> {
   try {
     const ids = GECKO_IDS.join(',');
     const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`;
-    const res  = await fetch(url, {
+    const res = await fetch(url, {
       headers: { 'Accept': 'application/json' },
       next: { revalidate: 60 },
     });
@@ -35,7 +35,38 @@ export async function getPrices(): Promise<PriceMap> {
     const priceMap: PriceMap = {};
     for (const token of TOKENS) {
       const usd = data[token.geckoId]?.usd;
-      if (usd) priceMap[token.symbol] = usd;
+      if (typeof usd === 'number') priceMap[token.symbol] = usd;
+    }
+
+    // Contract-address pricing prevents symbol collisions for TON jettons.
+    const contractTokens = TOKENS.filter(token => token.platform && token.contractAddress);
+    await Promise.all(contractTokens.map(async token => {
+      try {
+        const contractUrl = `https://api.coingecko.com/api/v3/simple/token_price/${token.platform}?contract_addresses=${encodeURIComponent(token.contractAddress!)}&vs_currencies=usd`;
+        const contractResponse = await fetch(contractUrl, { headers: { 'Accept': 'application/json' }, next: { revalidate: 60 } });
+        const contractData = await contractResponse.json();
+        const usd = contractData[token.contractAddress!.toLowerCase()]?.usd;
+        if (typeof usd === 'number') priceMap[token.symbol] = usd;
+      } catch {
+        // Keep the regular CoinGecko ID price as a fallback.
+      }
+    }));
+
+    // Tonscan currently reports no price for this token, so use a verified
+    // TON DEX pair from Dexscreener when one is available.
+    const rats = TOKENS.find(token => token.symbol === 'RAT');
+    if (rats?.contractAddress) {
+      try {
+        const dexResponse = await fetch(`https://api.dexscreener.com/token-pairs/v1/ton/${rats.contractAddress}`, { next: { revalidate: 30 } });
+        const dexData = await dexResponse.json();
+        const pair = Array.isArray(dexData)
+          ? dexData.filter(item => Number(item?.liquidity?.usd ?? 0) > 0).sort((a, b) => Number(b?.liquidity?.usd ?? 0) - Number(a?.liquidity?.usd ?? 0))[0]
+          : null;
+        const usd = Number(pair?.priceUsd);
+        if (Number.isFinite(usd) && usd > 0) priceMap.RAT = usd;
+      } catch {
+        // Keep cached/other provider prices if the DEX endpoint is unavailable.
+      }
     }
 
     // Cache in Redis

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getCurrentUser } from '@/lib/auth';
 import { getKrakenDepositAddress, getKrakenDepositMethods, getKrakenDepositStatus } from '@/lib/kraken';
-import { getPortfolio, keys, redis } from '@/lib/redis';
+import { getPortfolio, setBalance, keys, redis } from '@/lib/redis';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,8 +40,15 @@ export async function POST(request: Request) {
   const asset = typeof body?.asset === 'string' ? body.asset.toUpperCase() : '';
   const amount = Number(body?.amount);
   const address = typeof body?.address === 'string' ? body.address.trim() : '';
-  if (!ALLOWED.has(asset) || !Number.isFinite(amount) || amount <= 0 || !address) return NextResponse.json({ error: 'Enter a valid asset, amount and address.' }, { status: 400 });
-  const requestRecord = { id: randomUUID(), userId: user.id, asset, amount, address, status: 'pending_review', createdAt: Date.now() };
+  if (!ALLOWED.has(asset) || !Number.isFinite(amount) || amount <= 0 || !Number.isSafeInteger(Math.round(amount * 1e8)) || !address) return NextResponse.json({ error: 'Enter a valid asset, amount and address.' }, { status: 400 });
+  if (address.length > 128 || /\s/.test(address)) return NextResponse.json({ error: 'Enter a valid destination address.' }, { status: 400 });
+  if (amount > 250) return NextResponse.json({ error: 'Withdrawal limit is $250 per request.' }, { status: 400 });
+  const portfolio = await getPortfolio(user.id);
+  const balance = portfolio[asset] ?? 0;
+  if (balance < amount) return NextResponse.json({ error: `Insufficient ${asset} balance.` }, { status: 400 });
+  const fee = Math.max(0.0001, amount * 0.001);
+  const requestRecord = { id: randomUUID(), userId: user.id, asset, amount, netAmount: amount - fee, fee, address, status: 'pending_review', createdAt: Date.now() };
+  await setBalance(user.id, asset, balance - amount);
   await redis.lpush(keys.withdrawals(user.id), JSON.stringify(requestRecord));
   await redis.ltrim(keys.withdrawals(user.id), 0, 49);
   return NextResponse.json({ ok: true, request: requestRecord });
