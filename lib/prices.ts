@@ -52,6 +52,23 @@ export async function getPrices(): Promise<PriceMap> {
       }
     }));
 
+    // Tonscan currently reports no price for this token, so use a verified
+    // TON DEX pair from Dexscreener when one is available.
+    const rats = TOKENS.find(token => token.symbol === 'RAT');
+    if (rats?.contractAddress) {
+      try {
+        const dexResponse = await fetch(`https://api.dexscreener.com/token-pairs/v1/ton/${rats.contractAddress}`, { next: { revalidate: 30 } });
+        const dexData = await dexResponse.json();
+        const pair = Array.isArray(dexData)
+          ? dexData.filter(item => Number(item?.liquidity?.usd ?? 0) > 0).sort((a, b) => Number(b?.liquidity?.usd ?? 0) - Number(a?.liquidity?.usd ?? 0))[0]
+          : null;
+        const usd = Number(pair?.priceUsd);
+        if (Number.isFinite(usd) && usd > 0) priceMap.RAT = usd;
+      } catch {
+        // Keep cached/other provider prices if the DEX endpoint is unavailable.
+      }
+    }
+
     // Cache in Redis
     const toStore: Record<string, string> = {};
     for (const [sym, price] of Object.entries(priceMap)) toStore[sym] = price.toString();
