@@ -25,8 +25,25 @@ export async function GET(request: Request) {
       address = { asset, method, ...deposit, fetchedAt: Date.now() };
       await redis.hset(keys.walletAddresses(user.id), { [asset]: JSON.stringify(address) });
     }
-    const deposits = (await getKrakenDepositStatus(asset)).filter(d => d.info === address.address);
-    return NextResponse.json({ asset, methods, address, deposits, portfolio: await getPortfolio(user.id) });
+    const normalizedAddress = String(address.address).trim().toLowerCase();
+    const deposits = (await getKrakenDepositStatus(asset)).filter(d => String(d.info ?? '').trim().toLowerCase() === normalizedAddress);
+    const storedDeposits = (await redis.hgetall(keys.deposits(user.id))) ?? {};
+    const credited = [];
+    for (const deposit of deposits) {
+      const confirmations = deposit.confirmations;
+      // Kraken's Success status already means its funding checks passed. Older
+      // API responses omit confirmations, so do not reject those valid deposits.
+      const confirmed = deposit.status.toLowerCase() === 'success' && (confirmations === undefined || confirmations >= 1);
+      if (!confirmed || storedDeposits[deposit.txid]) continue;
+      const amount = Number(deposit.amount);
+      if (!Number.isFinite(amount) || amount <= 0) continue;
+      const portfolio = await getPortfolio(user.id);
+      await setBalance(user.id, asset, (portfolio[asset] ?? 0) + amount);
+      const record = { txid: deposit.txid, asset, amount, address: address.address, status: 'credited', creditedAt: Date.now() };
+      await redis.hset(keys.deposits(user.id), { [deposit.txid]: JSON.stringify(record) });
+      credited.push(record);
+    }
+    return NextResponse.json({ asset, methods, address, deposits, credited, portfolio: await getPortfolio(user.id) });
   } catch (error) {
     console.error('[wallet] Kraken funding read failed', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Could not load wallet.' }, { status: 502 });

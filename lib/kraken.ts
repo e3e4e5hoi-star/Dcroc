@@ -58,7 +58,7 @@ export async function getKrakenDepositAddress(symbol: string, method: string) {
 }
 
 export async function getKrakenDepositStatus(symbol?: string) {
-  return privateRequest<Array<{ asset: string; method: string; refid: string; txid: string; info: string; amount: string; time: number; status: string }>>("/0/private/DepositStatus", symbol ? { asset: fundingAsset(symbol) } : {})
+  return privateRequest<Array<{ asset: string; method: string; refid: string; txid: string; info: string; amount: string; time: number; status: string; confirmations?: number }>>("/0/private/DepositStatus", symbol ? { asset: fundingAsset(symbol) } : {})
 }
 
 export async function placeKrakenOrder(input: {

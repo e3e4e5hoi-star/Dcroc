@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getPortfolio, setBalance, logTx } from '@/lib/redis';
+import { getPortfolio, logTx } from '@/lib/redis';
 import { getPrices } from '@/lib/prices';
+import { placeKrakenOrder } from '@/lib/kraken';
 import { TOKEN_MAP } from '@/lib/tokens';
 import crypto from 'crypto';
 
@@ -34,26 +35,16 @@ export async function POST(req: NextRequest) {
   if (fromBal < fromAmt)
     return NextResponse.json({ error: `Insufficient ${fromSym} balance` }, { status: 400 });
 
-  const FEE_RATE  = 0.003; // 0.3% DEX fee
-  const slippage  = 1 - 0.001 * Math.random(); // simulate tiny slippage
-  const fromUsd   = fromAmt * fromPrice;
-  const fee       = fromUsd * FEE_RATE;
-  const toAmt     = ((fromUsd - fee) / toPrice) * slippage;
+  if (fromSym === 'RAT' || toSym === 'RAT' || fromSym === 'GRAM' || toSym === 'GRAM')
+    return NextResponse.json({ error: 'This asset is not supported by Kraken spot markets.' }, { status: 400 });
 
-  await Promise.all([
-    setBalance(uid, fromSym, fromBal - fromAmt),
-    setBalance(uid, toSym, (portfolio[toSym] ?? 0) + toAmt),
-    logTx(uid, {
-      id:      crypto.randomUUID(),
-      type:    'swap',
-      fromSym, toSym,
-      fromAmt,
-      toAmt,
-      price:   fromPrice,
-      fee,
-      ts:      Date.now(),
-    }),
-  ]);
+  const quoteSym = ['USDT', 'USDC', 'USD', 'EUR'].includes(toSym) ? toSym : fromSym;
+  const baseSym = quoteSym === toSym ? fromSym : toSym;
+  const side = quoteSym === toSym ? 'sell' : 'buy';
+  const amount = quoteSym === toSym ? fromAmt : (fromAmt * fromPrice) / toPrice;
+  if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: 'Invalid Kraken order size' }, { status: 400 });
 
-  return NextResponse.json({ success: true, toAmt, fee, rate: fromPrice / toPrice });
+  const order = await placeKrakenOrder({ side, baseSym, quoteSym, amount, orderType: 'market' });
+  await logTx(uid, { id: crypto.randomUUID(), type: 'swap', fromSym, toSym, fromAmt, toAmt: 0, price: fromPrice / toPrice, fee: 0, ts: Date.now() });
+  return NextResponse.json({ success: true, status: 'submitted', orderId: order.txid, message: 'Order submitted to Kraken. Balances update after fill sync.' });
 }

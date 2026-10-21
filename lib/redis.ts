@@ -55,6 +55,7 @@ export const keys = {
   authSession: (token: string) => `auth:session:${token}`,
   walletAddresses: (uid: string) => `user:${uid}:wallet:addresses`,
   withdrawals: (uid: string) => `user:${uid}:wallet:withdrawals`,
+  deposits: (uid: string) => `user:${uid}:wallet:deposits`,
 };
 
 // ── Portfolio helpers ─────────────────────────────────────────────
