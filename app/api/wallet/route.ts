@@ -25,12 +25,15 @@ export async function GET(request: Request) {
       address = { asset, method, ...deposit, fetchedAt: Date.now() };
       await redis.hset(keys.walletAddresses(user.id), { [asset]: JSON.stringify(address) });
     }
-    const deposits = (await getKrakenDepositStatus(asset)).filter(d => d.info === address.address);
+    const normalizedAddress = String(address.address).trim().toLowerCase();
+    const deposits = (await getKrakenDepositStatus(asset)).filter(d => String(d.info ?? '').trim().toLowerCase() === normalizedAddress);
     const storedDeposits = (await redis.hgetall(keys.deposits(user.id))) ?? {};
     const credited = [];
     for (const deposit of deposits) {
-      const confirmations = Number((deposit as { confirmations?: number }).confirmations ?? 0);
-      const confirmed = deposit.status.toLowerCase() === 'success' && confirmations >= 1;
+      const confirmations = deposit.confirmations;
+      // Kraken's Success status already means its funding checks passed. Older
+      // API responses omit confirmations, so do not reject those valid deposits.
+      const confirmed = deposit.status.toLowerCase() === 'success' && (confirmations === undefined || confirmations >= 1);
       if (!confirmed || storedDeposits[deposit.txid]) continue;
       const amount = Number(deposit.amount);
       if (!Number.isFinite(amount) || amount <= 0) continue;
