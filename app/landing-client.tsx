@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { ArrowDownUp, BarChart3, BriefcaseBusiness, ShieldCheck } from 'lucide-react';
 
 interface TickerToken { symbol: string; name: string; color: string; price: number; }
 
@@ -42,7 +43,7 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
         </div>
 
         <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 text-xs font-mono text-blue-400 border border-blue-400/30 bg-blue-400/5 px-3 py-1 rounded-full mb-6">
+          <div className="inline-flex items-center gap-2 text-xs font-mono text-blue-400 border border-blue-400/30 bg-blue-400/5 px-3 py-1 rounded-full mb-6"><ShieldCheck size={14} aria-hidden="true" />
             <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             Live prices · 30+ tokens · Redis-backed
           </div>
@@ -69,14 +70,14 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
       {/* Feature cards */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 px-8 pb-10 max-w-5xl mx-auto w-full">
         {[
-          { icon: '🏛️', title: 'CEX Trading',    color: '#3b82f6', desc: 'Market & limit orders, order book simulation, real-time fills with 0.1% maker fee.' },
-          { icon: '🔄', title: 'DEX Swap',       color: '#a855f7', desc: 'AMM-style token swaps with 0.3% fee, slippage model, and 30+ token pairs.' },
-          { icon: '📊', title: 'Live Portfolio', color: '#22c55e', desc: 'Redis-backed balances, full tx history, P&L tracking, CoinGecko price feed.' },
-        ].map(f => (
-          <div key={f.title} className="glass rounded-2xl p-5">
-            <div className="text-3xl mb-3">{f.icon}</div>
-            <h3 className="font-bold text-white mb-1" style={{ color: f.color }}>{f.title}</h3>
-            <p className="text-sm text-[#6b7280]">{f.desc}</p>
+          { Icon: BarChart3, title: 'Spot markets', color: '#3b82f6', desc: 'Market and limit execution with transparent pricing, pair details, and risk controls.' },
+          { Icon: ArrowDownUp, title: 'Asset exchange', color: '#a855f7', desc: 'Simple conversion flows with live reference prices and clear minimum received estimates.' },
+          { Icon: BriefcaseBusiness, title: 'Portfolio control', color: '#22c55e', desc: 'Balances, activity history, funding tools, and a clean view of your account.' },
+        ].map(({ Icon, title, color, desc }) => (
+          <div key={title} className="glass rounded-2xl p-5 transition hover:-translate-y-0.5 hover:border-blue-500/30">
+            <div className="mb-4 inline-flex rounded-xl border border-white/10 bg-white/[0.04] p-2.5" style={{ color }}><Icon size={21} strokeWidth={1.8} /></div>
+            <h3 className="mb-1 font-bold text-white">{title}</h3>
+            <p className="text-sm text-[#6b7280]">{desc}</p>
           </div>
         ))}
       </section>
