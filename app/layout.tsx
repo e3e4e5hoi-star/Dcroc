@@ -3,11 +3,11 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'Dcroc Exchange — DEX + CEX',
-  description: 'Dcroc Exchange: a simulated DEX + CEX with real token prices, Redis-backed portfolio, and secure email verification.',
+  title: 'SwapX Exchange — Spot Crypto Markets',
+  description: 'SwapX is an independent digital asset exchange with live market prices, spot trading, portfolio tools, and human-reviewed withdrawals.',
   openGraph: {
-    title: 'Dcroc Exchange',
-    description: 'Dcroc Exchange combines simulated DEX swaps and CEX trading with real token prices.',
+    title: 'SwapX Exchange — Spot Crypto Markets',
+    description: 'Independent digital asset exchange with live markets, transparent risk controls, and secure funding workflows.',
     type: 'website',
   },
 };

@@ -56,16 +56,21 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
           </h1>
 
           <p className="text-[#9ca3af] text-lg mb-8 max-w-xl mx-auto">
-            Dcroc Exchange combines a Centralized Exchange (CEX) order interface with a
-            Decentralized Exchange (DEX) AMM swap — powered by real-time prices,
-            Redis portfolio tracking, and secure email verification.
+            SwapX is an independent digital asset exchange for transparent spot markets,
+            portfolio management, and secure account funding — with live reference prices,
+            clear risk controls, and human-reviewed withdrawals.
           </p>
 
           <EmailAuth />
 
-          <p className="text-xs text-[#4b5563]">No crypto wallet needed · Simulated portfolio · Educational demo</p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs text-[#6b7280]"><span className="rounded-full border border-[#26304a] px-3 py-1">Email verification</span><span className="rounded-full border border-[#26304a] px-3 py-1">Human-reviewed withdrawals</span><span className="rounded-full border border-[#26304a] px-3 py-1">Spot risk limits</span></div>
         </div>
       </main>
+
+      {/* Exchange facts */}
+      <section className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-3 px-6 pb-8 sm:grid-cols-4">
+        {[['30+', 'listed assets'], ['0.10%', 'spot fee target'], ['$250', 'order risk cap'], ['24/7', 'price updates']].map(([value, label]) => <div key={label} className="rounded-2xl border border-[#1e2235] bg-[#0f1117] p-4 text-center"><div className="text-xl font-bold text-white">{value}</div><div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[#6b7280]">{label}</div></div>)}
+      </section>
 
       {/* Feature cards */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 px-8 pb-10 max-w-5xl mx-auto w-full">
@@ -80,6 +85,11 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
             <p className="text-sm text-[#6b7280]">{desc}</p>
           </div>
         ))}
+      </section>
+
+      <section className="mx-auto mb-10 w-full max-w-5xl px-6">
+        <div className="mb-3 flex items-center justify-between"><div><h2 className="font-semibold text-white">Live markets</h2><p className="text-xs text-[#6b7280]">Reference prices from supported market data providers</p></div><span className="text-xs text-green-300">Updated automatically</span></div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{tickerTokens.slice(0, 8).map(token => <div key={token.symbol} className="rounded-xl border border-[#1e2235] bg-[#0f1117] p-3"><div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: token.color }} /><span className="text-sm font-medium text-white">{token.symbol}</span></div><div className="mt-2 font-mono text-sm text-[#b8c0d4]">{token.price > 0 ? `$${token.price >= 1 ? token.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : token.price.toFixed(6)}` : 'Unavailable'}</div></div>)}</div>
       </section>
 
       <footer className="border-t border-[#1e2235] px-8 py-4 flex items-center justify-between text-xs text-[#4b5563]">
