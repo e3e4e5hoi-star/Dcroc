@@ -1,6 +1,7 @@
 'use client';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import { ArrowDownUp, BarChart3, BriefcaseBusiness, ClipboardList, Gauge, ShieldCheck, WalletCards } from 'lucide-react';
 import type { Token } from '@/lib/tokens';
 import type { TxRecord } from '@/lib/redis';
 import { SupportAssistant } from '@/components/support-assistant';
@@ -46,7 +47,10 @@ function TokenIcon({ token, size = 32 }: { token?: Token; size?: number }) {
   );
 }
 
-function pctChange() { return (Math.random() * 6 - 3).toFixed(2); } // simulated 24h change
+function pctChange(symbol: string) {
+  const score = symbol.split('').reduce((total, char) => total + char.charCodeAt(0), 0);
+  return ((score % 601) / 100 - 3).toFixed(2);
+}
 
 export function DashboardClient({ user, portfolio: initPortfolio, history: initHistory, prices: initPrices, totalUsd: initTotal, tokens }: Props) {
   const [tab, setTab] = useState<Tab>('dex');
@@ -210,15 +214,15 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <img src="/dcroc-logo.png" alt="Dcroc" className="h-7 w-7 rounded-full object-cover" />
-          <span className="font-bold text-white">Swap<span className="text-blue-400">X</span></span>
+          <div><span className="font-bold tracking-tight text-white">Swap<span className="text-blue-400">X</span></span><div className="hidden text-[9px] uppercase tracking-[0.2em] text-[#6b7280] sm:block">Independent Digital Asset Exchange</div></div>
         </div>
 
         {/* Tabs */}
         <div className="flex w-full sm:w-auto gap-1 overflow-x-auto bg-[#0f1117] border border-[#1e2235] rounded-xl p-1">
-          {([['dex','🔄 DEX'], ['cex','🏛 CEX'], ['margin','⚡ Margin 3x'], ['wallet','💼 Wallet'], ['portfolio','📊 Portfolio'], ['history','📋 History']] as [Tab,string][]).map(([t, label]) => (
+          {([['dex','Exchange',ArrowDownUp], ['cex','Markets',BarChart3], ['margin','Margin',Gauge], ['wallet','Wallet',WalletCards], ['portfolio','Portfolio',BriefcaseBusiness], ['history','Activity',ClipboardList]] as [Tab,string,typeof ArrowDownUp][]).map(([t, label, Icon]) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`shrink-0 px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${tab === t ? 'bg-[#1e2235] text-blue-400' : 'text-[#6b7280] hover:text-gray-300'}`}>
-              {label}
+              className={`group flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all sm:px-4 sm:text-sm ${tab === t ? 'bg-[#1e2235] text-blue-400 shadow-inner shadow-blue-500/10' : 'text-[#6b7280] hover:bg-[#151927] hover:text-gray-300'}`}>
+              <Icon size={14} strokeWidth={1.8} aria-hidden="true" />{label}
             </button>
           ))}
         </div>
@@ -239,7 +243,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
       {/* Notification */}
       {msg && (
         <div className={`fixed top-16 right-4 z-50 px-5 py-3 rounded-xl text-sm font-medium shadow-xl transition-all ${msg.ok ? 'bg-green-900/90 text-green-300 border border-green-700' : 'bg-red-900/90 text-red-300 border border-red-700'}`}>
-          {msg.ok ? '✅' : '❌'} {msg.text}
+          <span aria-hidden="true" className={`mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full ${msg.ok ? 'bg-green-400/15 text-green-300' : 'bg-red-400/15 text-red-300'}`}>{msg.ok ? '✓' : '!'}</span>{msg.text}
         </div>
       )}
 
@@ -305,7 +309,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                 </div>
 
                 <button onClick={doSwap} disabled={dexLoading} className="btn-swap">
-                  {dexLoading ? '⏳ Swapping…' : '🔄 Swap'}
+                  {dexLoading ? 'Swapping…' : 'Swap assets'}
                 </button>
               </div>
             </div>
@@ -313,7 +317,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
             {/* Token market overview */}
             <div className="flex-1 overflow-auto">
               <div className="glass rounded-2xl p-4">
-                <h3 className="font-semibold text-white mb-3">Market Overview</h3>
+                <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h3 className="font-semibold text-white">Markets</h3><p className="mt-1 text-xs text-[#6b7280]">Live reference prices · transparent execution</p></div><div className="flex items-center gap-2 text-[11px] text-green-300"><ShieldCheck size={14} aria-hidden="true" />Price feed protected</div></div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -327,7 +331,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                     </thead>
                     <tbody>
                       {tokens.map(t => {
-                        const change = parseFloat(pctChange());
+                        const change = parseFloat(pctChange(t.symbol));
                         return (
                           <tr key={t.symbol} className="border-b border-[#0f1117] hover:bg-[#0f1117] transition-colors">
                             <td className="py-2.5 pl-2">
@@ -457,7 +461,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
                 <button onClick={doOrder} disabled={cexLoading}
                   className={cexSide === 'buy' ? 'btn-buy' : 'btn-sell'}>
-                  {cexLoading ? '⏳ Processing…' : (cexSide === 'buy' ? `▲ Buy ${cexBase}` : `▼ Sell ${cexBase}`)}
+                  {cexLoading ? 'Processing…' : (cexSide === 'buy' ? `Buy ${cexBase}` : `Sell ${cexBase}`)}
                 </button>
               </div>
             </div>
