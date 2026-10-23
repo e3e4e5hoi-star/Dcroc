@@ -1,4 +1,4 @@
-import { generateText } from 'ai';
+import { generateText, gateway } from 'ai';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { getPrices } from '@/lib/prices';
@@ -26,13 +26,17 @@ export async function POST(request: Request) {
 
   const [prices, portfolio] = await Promise.all([getPrices(), getPortfolio(user.id)]);
   const context = JSON.stringify({ prices, portfolio: Object.keys(portfolio) });
-  const result = await generateText({
-    model: 'openai/gpt-4o-mini',
-    instructions: `You are SwapX support, a careful crypto exchange support assistant. Answer in English, concise and professional. Explain that you cannot execute trades, approve withdrawals, or change security settings. Never request API keys, passwords, seed phrases, private keys, or full wallet secrets. Give operational help about deposits, pending withdrawals, Kraken spot trading, margin risk, fees, and account navigation. Never promise a withdrawal or a price. Current non-sensitive app context: ${context}`,
-    messages: safeMessages,
-    maxOutputTokens: 300,
-    temperature: 0.2,
-  });
-
-  return NextResponse.json({ message: result.text });
+  try {
+    const result = await generateText({
+      model: gateway('openai/gpt-4o-mini'),
+      instructions: `You are SwapX support, a careful crypto exchange support assistant. Answer in English, concise and professional. Explain that you cannot execute trades, approve withdrawals, or change security settings. Never request API keys, passwords, seed phrases, private keys, or full wallet secrets. Give operational help about deposits, pending withdrawals, Kraken spot trading, margin risk, fees, and account navigation. Never promise a withdrawal or a price. Current non-sensitive app context: ${context}`,
+      messages: safeMessages,
+      maxOutputTokens: 300,
+      temperature: 0.2,
+    });
+    return NextResponse.json({ message: result.text });
+  } catch (error) {
+    console.error('[support] AI response failed', error);
+    return NextResponse.json({ error: 'AI support is temporarily unavailable. Please try again shortly.' }, { status: 503 });
+  }
 }

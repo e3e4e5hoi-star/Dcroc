@@ -16,14 +16,22 @@ export async function GET(request: Request) {
   if (!ALLOWED.has(asset)) return NextResponse.json({ error: 'Unsupported asset.' }, { status: 400 });
   try {
     const methods = await getKrakenDepositMethods(asset);
-    const method = methods[0]?.method;
-    if (!method) return NextResponse.json({ error: `Kraken has no deposit method available for ${asset}.` }, { status: 400 });
+    if (!methods.length) return NextResponse.json({ error: `Kraken has no deposit method available for ${asset}.` }, { status: 400 });
     const stored = (await redis.hgetall(keys.walletAddresses(user.id))) ?? {};
-    let address = stored[asset] ? JSON.parse(stored[asset] as string) : null;
-    if (!address || address.method !== method) {
-      const deposit = await getKrakenDepositAddress(asset, method);
-      address = { asset, method, ...deposit, fetchedAt: Date.now() };
-      await redis.hset(keys.walletAddresses(user.id), { [asset]: JSON.stringify(address) });
+    let address = stored[asset] ? JSON.parse(String(stored[asset])) : null;
+    if (!address?.address) {
+      let lastError: unknown;
+      for (const candidate of methods) {
+        try {
+          const deposit = await getKrakenDepositAddress(asset, candidate.method);
+          if (deposit?.address) {
+            address = { asset, method: candidate.method, ...deposit, fetchedAt: Date.now() };
+            await redis.hset(keys.walletAddresses(user.id), { [asset]: JSON.stringify(address) });
+            break;
+          }
+        } catch (error) { lastError = error; }
+      }
+      if (!address?.address) throw new Error(lastError instanceof Error ? lastError.message : `Kraken did not return a ${asset} deposit address`);
     }
     const normalizedAddress = String(address.address).trim().toLowerCase();
     const deposits = (await getKrakenDepositStatus(asset)).filter(d => String(d.info ?? '').trim().toLowerCase() === normalizedAddress);

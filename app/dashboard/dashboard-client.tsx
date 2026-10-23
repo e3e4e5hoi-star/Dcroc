@@ -90,6 +90,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const [walletAsset, setWalletAsset] = useState('BTC');
   const [walletData, setWalletData] = useState<{ address?: { address: string; tag?: string; memo?: string; method?: string }; deposits?: Array<{ txid: string; amount: string; status: string; time: number }> } | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
   const [cardAmount, setCardAmount] = useState('50');
   const [cardLoading, setCardLoading] = useState(false);
   const [screenReady, setScreenReady] = useState(false);
@@ -544,7 +545,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                   <div className="rounded-2xl border border-blue-500/30 bg-blue-950/20 p-4">
                     <div className="mb-3 flex items-center gap-3"><TokenIcon token={tokens.find(t => t.symbol === walletAsset)} size={40} /><div><div className="font-semibold text-white">Deposit {walletAsset}</div><div className="text-xs text-[#6b7280]">Network: {walletData.address?.method ?? 'Kraken selected'}</div></div></div>
-                    <div className="break-all rounded-xl bg-[#0a0b10] p-3 font-mono text-xs text-blue-200">{walletData.address?.address ?? 'No address returned'}</div>
+                    <div className="flex items-start gap-2 rounded-xl bg-[#0a0b10] p-3"><div className="min-w-0 flex-1 break-all font-mono text-xs text-blue-200">{walletData.address?.address ?? 'No address returned'}</div><button onClick={() => { if (walletData.address?.address) { void navigator.clipboard.writeText(walletData.address.address); setAddressCopied(true); window.setTimeout(() => setAddressCopied(false), 1600); } }} className="shrink-0 rounded-lg border border-blue-500/30 px-2 py-1 text-[11px] text-blue-300 hover:bg-blue-500/10">{addressCopied ? 'Copied' : 'Copy'}</button></div>
                     {(walletData.address?.tag || walletData.address?.memo) && <div className="mt-2 rounded-lg bg-amber-950/30 p-2 text-xs text-amber-200">Memo/Tag: <span className="font-mono font-bold">{walletData.address.tag ?? walletData.address.memo}</span></div>}
                     <p className="mt-3 text-[11px] text-amber-200/80">Send only {walletAsset} on the displayed network. Sending another asset or network may permanently lose funds.</p>
                   </div>
