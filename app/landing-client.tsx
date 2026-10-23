@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Image from 'next/image';
 import { ArrowDownUp, BarChart3, BriefcaseBusiness, ShieldCheck } from 'lucide-react';
 
 interface TickerToken { symbol: string; name: string; color: string; price: number; }
@@ -12,7 +13,7 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
       {/* Nav */}
       <nav className="flex items-center justify-between px-8 py-4 border-b border-[#1e2235]">
         <div className="flex items-center gap-2">
-          <img src="/dcroc-logo.png" alt="Dcroc" className="h-9 w-9 rounded-full object-cover" />
+          <Image src="/dcroc-logo.png" alt="Dcroc" width={36} height={36} priority className="h-9 w-9 rounded-full object-cover" />
           <span className="font-bold text-xl text-white">Dcroc<span className="text-blue-400"> Exchange</span></span>
           <span className="ml-2 text-xs text-[#6b7280] border border-[#1e2235] px-2 py-0.5 rounded-full">BETA</span>
         </div>
@@ -94,7 +95,7 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
 
       <footer className="border-t border-[#1e2235] px-8 py-4 flex items-center justify-between text-xs text-[#4b5563]">
         <span>© 2026 Dcroc Exchange · <a href="https://expediator.github.io/resume/" className="text-blue-400 hover:underline">expediator</a></span>
-        <span>Demo — not financial advice</span>
+        <span>Digital asset services · Review all transaction details before confirming</span>
       </footer>
     </div>
   );
@@ -147,7 +148,7 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
     <div className={compact ? 'flex items-center gap-2' : 'mx-auto flex w-full max-w-md flex-col gap-3'}>
       {!sent ? (
         <div className={compact ? 'flex items-center gap-2' : 'flex flex-col gap-2'}>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" aria-label="Email address" className={compact ? `${inputClass} w-48` : inputClass} onKeyDown={e => { if (e.key === 'Enter') void sendCode(); }} />
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" aria-label="Email address" className={compact ? `${inputClass} w-48` : inputClass} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) void sendCode(); }} />
           <button type="button" onClick={() => void sendCode()} disabled={busy} className={compact ? 'rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60' : 'rounded-xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg hover:bg-blue-500 disabled:opacity-60'}>
             {busy ? 'Sending...' : 'Continue with Email'}
           </button>
@@ -156,7 +157,7 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
         <div className="flex flex-col gap-2">
           <p className="text-sm text-gray-300">Enter the code sent to <span className="font-semibold text-white">{email}</span>.</p>
           <div className="flex gap-2">
-            <input dir="ltr" lang="en" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(normalizeDigits(e.target.value).replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code" aria-label="Verification code" className={`${inputClass} text-left font-mono tracking-[0.35em]`} onKeyDown={e => { if (e.key === 'Enter') void verifyCode(); }} />
+            <input dir="ltr" lang="en" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={e => setCode(normalizeDigits(e.target.value).replace(/\D/g, '').slice(0, 6))} placeholder="6-digit code" aria-label="Verification code" className={`${inputClass} text-left font-mono tracking-[0.35em]`} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) void verifyCode(); }} />
             <button type="button" onClick={() => void verifyCode()} disabled={busy} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">{busy ? '...' : 'Verify'}</button>
           </div>
           <button type="button" onClick={() => { setSent(false); setCode(''); setMessage(''); }} className="self-start text-xs text-blue-400 hover:underline">Use another email / resend</button>
