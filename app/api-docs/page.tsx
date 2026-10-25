@@ -10,7 +10,7 @@ const endpoints = [
 
 export default function ApiDocsPage() {
   return (
-    <main className="min-h-screen bg-[#080a10] px-5 py-10 text-slate-200 sm:px-8">
+    <main className="min-h-screen bg-[#080a10] px-5 py-10 text-slate-200 antialiased sm:px-8">
       <div className="mx-auto max-w-5xl">
         <header className="flex flex-col gap-6 border-b border-white/10 pb-8 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">

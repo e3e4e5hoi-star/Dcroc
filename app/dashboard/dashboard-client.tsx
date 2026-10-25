@@ -207,9 +207,13 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
   const asks = cexPrice ? mkOrderBook(cexPrice, 'ask') : [];
   const bids = cexPrice ? mkOrderBook(cexPrice, 'bid') : [];
+  const recentTrades = cexPrice ? Array.from({ length: 14 }, (_, i) => ({
+    isBuy: i % 3 !== 0,
+    price: cexPrice * (1 + ((i * 17 % 21) - 10) / 10000),
+  })) : [];
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0a0b10' }}>
+    <div className="min-h-screen flex flex-col bg-[#0a0b10] text-slate-200">
       {!screenReady && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0a0b10]" aria-label="Loading exchange"><div className="flex flex-col items-center gap-4"><div className="h-10 w-10 animate-spin rounded-full border-2 border-blue-500/20 border-t-blue-400" /><div className="text-sm text-slate-400">Securing your trading workspace…</div></div></div>}
       {/* Header */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
@@ -501,16 +505,12 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                     <div className="text-xs text-[#6b7280] grid grid-cols-2 mb-2">
                       <span>Price</span><span className="text-right">Side</span>
                     </div>
-                    {Array.from({ length: 14 }, (_, i) => {
-                      const isBuy = Math.random() > 0.5;
-                      const p = cexPrice ? cexPrice * (1 + (Math.random() * 0.002 - 0.001)) : 0;
-                      return (
-                        <div key={i} className="grid grid-cols-2 text-xs py-0.5">
-                          <span className={`${isBuy ? 'text-green-400' : 'text-red-400'} mono`}>{p ? fmt(p) : '—'}</span>
-                          <span className={`text-right text-xs ${isBuy ? 'text-green-400' : 'text-red-400'}`}>{isBuy ? 'BUY' : 'SELL'}</span>
-                        </div>
-                      );
-                    })}
+                    {recentTrades.map((trade, i) => (
+                      <div key={i} className="grid grid-cols-2 text-xs py-0.5">
+                        <span className={`${trade.isBuy ? 'text-green-400' : 'text-red-400'} mono`}>{trade.price ? fmt(trade.price) : '—'}</span>
+                        <span className={`text-right text-xs ${trade.isBuy ? 'text-green-400' : 'text-red-400'}`}>{trade.isBuy ? 'BUY' : 'SELL'}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

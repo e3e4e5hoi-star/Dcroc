@@ -5,7 +5,9 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; background: #070a12; color-scheme: dark; }
+
+#__next { min-height: 100vh; background: #070a12; }
 
 body {
   background: #070a12;
