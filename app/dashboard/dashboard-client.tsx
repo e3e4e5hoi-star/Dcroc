@@ -202,7 +202,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const mkOrderBook = (p: number, side: 'ask'|'bid', n = 7) =>
     Array.from({ length: n }, (_, i) => ({
       price: side === 'ask' ? p * (1 + 0.0003 * (i + 1)) : p * (1 - 0.0003 * (i + 1)),
-      qty:   (Math.random() * 3 + 0.1).toFixed(4),
+      qty:   (0.35 + ((i * 37 + (side === 'ask' ? 11 : 19)) % 260) / 100).toFixed(4),
     }));
 
   const asks = cexPrice ? mkOrderBook(cexPrice, 'ask') : [];

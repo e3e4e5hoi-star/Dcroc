@@ -9,9 +9,9 @@ export function LandingClient({ tickerTokens }: { tickerTokens: TickerToken[] })
   const doubled = [...tickerTokens, ...tickerTokens]; // for seamless loop
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0a0b10' }}>
+    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,#14213d_0%,#080b13_42%,#070a0f_100%)] text-slate-100">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-8 py-4 border-b border-[#1e2235]">
+      <nav className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#09101dcc] px-4 py-3 backdrop-blur-xl sm:px-8 sm:py-4">
         <div className="flex items-center gap-2">
           <Image src="/dcroc-logo.png" alt="Dcroc" width={36} height={36} priority className="h-9 w-9 rounded-full object-cover" />
           <span className="font-bold text-xl text-white">Dcroc<span className="text-blue-400"> Exchange</span></span>
@@ -119,11 +119,13 @@ function EmailAuth({ compact = false }: { compact?: boolean }) {
     }
     setBusy(true);
     setMessage('');
-    const response = await fetch('/api/auth/request-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) setMessage(result.error ?? 'Could not send the verification code.');
-    else { setSent(true); setMessage('A 6-digit verification code was sent to your email.'); }
-    setBusy(false);
+    try {
+      const response = await fetch('/api/auth/request-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim().toLowerCase() }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) setMessage(result.error ?? 'Could not send the verification code.');
+      else { setSent(true); setMessage('A 6-digit verification code was sent to your email.'); }
+    } catch { setMessage('Network error. Check your connection and try again.'); }
+    finally { setBusy(false); }
   }
 
   async function verifyCode() {
