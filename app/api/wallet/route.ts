@@ -65,20 +65,28 @@ export async function POST(request: Request) {
   const asset = typeof body?.asset === 'string' ? body.asset.toUpperCase() : '';
   const amount = Number(body?.amount);
   const address = typeof body?.address === 'string' ? body.address.trim() : '';
+  const idempotencyKey = request.headers.get('idempotency-key')?.trim() || String(body?.requestId ?? '').trim();
   if (!ALLOWED.has(asset) || !Number.isFinite(amount) || amount <= 0 || !Number.isSafeInteger(Math.round(amount * 1e8)) || !address) return NextResponse.json({ error: 'Enter a valid asset, amount and address.' }, { status: 400 });
-  if (address.length > 128 || /\s/.test(address)) return NextResponse.json({ error: 'Enter a valid destination address.' }, { status: 400 });
+  if (address.length > 128 || /\s/.test(address) || !/^[a-zA-Z0-9:_-]+$/.test(address)) return NextResponse.json({ error: 'Enter a valid destination address.' }, { status: 400 });
+  if (idempotencyKey && !/^[a-zA-Z0-9_-]{8,80}$/.test(idempotencyKey)) return NextResponse.json({ error: 'Invalid withdrawal request key.' }, { status: 400 });
   if (amount > 250) return NextResponse.json({ error: 'Withdrawal limit is $250 per request.' }, { status: 400 });
   const portfolio = await getPortfolio(user.id);
   const balance = portfolio[asset] ?? 0;
   if (balance < amount) return NextResponse.json({ error: `Insufficient ${asset} balance.` }, { status: 400 });
   const fee = Math.max(0.0001, amount * 0.001);
   const requestRecord = { id: randomUUID(), userId: user.id, asset, amount, netAmount: amount - fee, fee, address, status: 'pending_review', createdAt: Date.now() };
+  if (idempotencyKey) {
+    const previous = await redis.get(keys.withdrawalRequest(user.id, idempotencyKey));
+    if (previous) return NextResponse.json({ ok: true, duplicate: true, request: JSON.parse(String(previous)) });
+  }
   try {
+    if (idempotencyKey) await redis.set(keys.withdrawalRequest(user.id, idempotencyKey), JSON.stringify(requestRecord), { ex: 86400, nx: true });
     await setBalance(user.id, asset, balance - amount);
     await redis.lpush(keys.withdrawals(user.id), JSON.stringify(requestRecord));
     await redis.ltrim(keys.withdrawals(user.id), 0, 49);
     return NextResponse.json({ ok: true, request: requestRecord });
   } catch (error) {
+    if (idempotencyKey) await redis.del(keys.withdrawalRequest(user.id, idempotencyKey)).catch(() => undefined);
     await setBalance(user.id, asset, balance).catch(() => undefined);
     console.error('[wallet] withdrawal request failed', error);
     return NextResponse.json({ error: 'Could not submit the withdrawal request. Your balance was restored.' }, { status: 503 });
