@@ -73,8 +73,14 @@ export async function POST(request: Request) {
   if (balance < amount) return NextResponse.json({ error: `Insufficient ${asset} balance.` }, { status: 400 });
   const fee = Math.max(0.0001, amount * 0.001);
   const requestRecord = { id: randomUUID(), userId: user.id, asset, amount, netAmount: amount - fee, fee, address, status: 'pending_review', createdAt: Date.now() };
-  await setBalance(user.id, asset, balance - amount);
-  await redis.lpush(keys.withdrawals(user.id), JSON.stringify(requestRecord));
-  await redis.ltrim(keys.withdrawals(user.id), 0, 49);
-  return NextResponse.json({ ok: true, request: requestRecord });
+  try {
+    await setBalance(user.id, asset, balance - amount);
+    await redis.lpush(keys.withdrawals(user.id), JSON.stringify(requestRecord));
+    await redis.ltrim(keys.withdrawals(user.id), 0, 49);
+    return NextResponse.json({ ok: true, request: requestRecord });
+  } catch (error) {
+    await setBalance(user.id, asset, balance).catch(() => undefined);
+    console.error('[wallet] withdrawal request failed', error);
+    return NextResponse.json({ error: 'Could not submit the withdrawal request. Your balance was restored.' }, { status: 503 });
+  }
 }
