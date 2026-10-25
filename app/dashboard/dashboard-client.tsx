@@ -95,6 +95,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
   const [cardLoading, setCardLoading] = useState(false);
   const [screenReady, setScreenReady] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [withdrawAddress, setWithdrawAddress] = useState('');
 
   const notify = (text: string, ok: boolean) => {
@@ -183,13 +184,20 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
   const requestWithdrawal = async () => {
     const amount = Number(withdrawAmount);
-    if (!Number.isFinite(amount) || amount <= 0 || !withdrawAddress.trim()) return notify('Enter a valid amount and destination address.', false);
+    const address = withdrawAddress.trim();
+    if (withdrawLoading) return;
+    if (!Number.isFinite(amount) || amount <= 0 || !address) return notify('Enter a valid amount and destination address.', false);
     if (!window.confirm(`Create a withdrawal request for ${amount} ${walletAsset}? It will be reviewed before Kraken sends funds.`)) return;
-    const res = await fetch('/api/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset: walletAsset, amount, address: withdrawAddress.trim() }) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return notify(data.error ?? 'Withdrawal request failed.', false);
-    notify('Withdrawal request submitted for review.', true);
-    setWithdrawAmount(''); setWithdrawAddress('');
+    setWithdrawLoading(true);
+    try {
+      const res = await fetch('/api/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset: walletAsset, amount, address }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return notify(data.error ?? 'Withdrawal request failed.', false);
+      notify('Withdrawal request submitted for review.', true);
+      setWithdrawAmount(''); setWithdrawAddress('');
+      await refreshPortfolio();
+    } catch { notify('Network error. Your balance was not changed.', false); }
+    finally { setWithdrawLoading(false); }
   };
 
   const dexOutAmt = dexAmt && prices[dexFrom] && prices[dexTo]
@@ -207,9 +215,13 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
 
   const asks = cexPrice ? mkOrderBook(cexPrice, 'ask') : [];
   const bids = cexPrice ? mkOrderBook(cexPrice, 'bid') : [];
+  const recentTrades = cexPrice ? Array.from({ length: 14 }, (_, i) => ({
+    isBuy: i % 3 !== 0,
+    price: cexPrice * (1 + ((i * 17 % 21) - 10) / 10000),
+  })) : [];
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#0a0b10' }}>
+    <div className="min-h-screen flex flex-col bg-[#0a0b10] text-slate-200">
       {!screenReady && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0a0b10]" aria-label="Loading exchange"><div className="flex flex-col items-center gap-4"><div className="h-10 w-10 animate-spin rounded-full border-2 border-blue-500/20 border-t-blue-400" /><div className="text-sm text-slate-400">Securing your trading workspace…</div></div></div>}
       {/* Header */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-6 py-3 border-b border-[#1e2235] glass sticky top-0 z-50">
@@ -501,16 +513,12 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
                     <div className="text-xs text-[#6b7280] grid grid-cols-2 mb-2">
                       <span>Price</span><span className="text-right">Side</span>
                     </div>
-                    {Array.from({ length: 14 }, (_, i) => {
-                      const isBuy = Math.random() > 0.5;
-                      const p = cexPrice ? cexPrice * (1 + (Math.random() * 0.002 - 0.001)) : 0;
-                      return (
-                        <div key={i} className="grid grid-cols-2 text-xs py-0.5">
-                          <span className={`${isBuy ? 'text-green-400' : 'text-red-400'} mono`}>{p ? fmt(p) : '—'}</span>
-                          <span className={`text-right text-xs ${isBuy ? 'text-green-400' : 'text-red-400'}`}>{isBuy ? 'BUY' : 'SELL'}</span>
-                        </div>
-                      );
-                    })}
+                    {recentTrades.map((trade, i) => (
+                      <div key={i} className="grid grid-cols-2 text-xs py-0.5">
+                        <span className={`${trade.isBuy ? 'text-green-400' : 'text-red-400'} mono`}>{trade.price ? fmt(trade.price) : '—'}</span>
+                        <span className={`text-right text-xs ${trade.isBuy ? 'text-green-400' : 'text-red-400'}`}>{trade.isBuy ? 'BUY' : 'SELL'}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -558,7 +566,7 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
               <p className="mt-1 text-xs text-[#6b7280]">Secure Stripe checkout. Funds are credited as USDC after payment confirmation.</p>
               <div className="mt-4 flex flex-col gap-3 sm:flex-row"><input type="number" min="10" max="250" step="1" value={cardAmount} onChange={e => setCardAmount(e.target.value)} className="input-dark flex-1" placeholder="Amount in USD" /><button onClick={() => void buyWithCard()} disabled={cardLoading} className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60">{cardLoading ? 'Opening checkout…' : 'Pay with debit card'}</button></div>
             </div>
-            <div className="glass rounded-2xl p-4 sm:p-6"><h3 className="font-semibold text-white">Withdrawal request</h3><p className="mt-1 text-xs text-[#6b7280]">Requests are held for review and are not sent automatically from a user button.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><input type="number" min="0" step="any" placeholder={`Amount in ${walletAsset}`} value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="input-dark" /><input placeholder="Destination address" value={withdrawAddress} onChange={e => setWithdrawAddress(e.target.value)} className="input-dark" /></div><button onClick={() => void requestWithdrawal()} className="mt-3 rounded-lg border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-950/40">Submit for review</button></div>
+            <div className="glass rounded-2xl p-4 sm:p-6"><h3 className="font-semibold text-white">Withdrawal request</h3><p className="mt-1 text-xs text-[#6b7280]">Requests are held for review and are not sent automatically from a user button.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><input type="number" min="0" step="any" placeholder={`Amount in ${walletAsset}`} value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="input-dark" /><input placeholder="Destination address" value={withdrawAddress} onChange={e => setWithdrawAddress(e.target.value)} className="input-dark" /></div><button onClick={() => void requestWithdrawal()} disabled={withdrawLoading} className="mt-3 rounded-lg border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-300 hover:bg-amber-950/40 disabled:cursor-not-allowed disabled:opacity-60">{withdrawLoading ? 'Submitting…' : 'Submit for review'}</button></div>
           </div>
         )}
         {/* ── REAL KRAKEN SPOT MARGIN ──────────────────────────────── */}
