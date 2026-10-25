@@ -190,7 +190,8 @@ export function DashboardClient({ user, portfolio: initPortfolio, history: initH
     if (!window.confirm(`Create a withdrawal request for ${amount} ${walletAsset}? It will be reviewed before Kraken sends funds.`)) return;
     setWithdrawLoading(true);
     try {
-      const res = await fetch('/api/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset: walletAsset, amount, address }) });
+      const requestId = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const res = await fetch('/api/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestId }, body: JSON.stringify({ asset: walletAsset, amount, address, requestId }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return notify(data.error ?? 'Withdrawal request failed.', false);
       notify('Withdrawal request submitted for review.', true);

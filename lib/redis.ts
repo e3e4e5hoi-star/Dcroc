@@ -56,6 +56,7 @@ export const keys = {
   walletAddresses: (uid: string) => `user:${uid}:wallet:addresses`,
   withdrawals: (uid: string) => `user:${uid}:wallet:withdrawals`,
   deposits: (uid: string) => `user:${uid}:wallet:deposits`,
+  withdrawalRequest: (uid: string, idempotencyKey: string) => `user:${uid}:wallet:withdrawal-request:${idempotencyKey}`,
 };
 
 // ── Portfolio helpers ─────────────────────────────────────────────
