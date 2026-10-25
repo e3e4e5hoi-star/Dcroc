@@ -8,10 +8,19 @@
 html { scroll-behavior: smooth; }
 
 body {
-  background: #0a0b10;
+  background: #070a12;
   color: #e5e7eb;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  min-width: 0;
+}
+
+button, input, select { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .ticker-inner { animation-duration: 55s; }
+  .glass { background: rgba(13, 18, 31, .92); border-color: #202b43; }
 }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
