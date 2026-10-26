@@ -16,6 +16,7 @@ export default function AirdropClient() {
   const [copied, setCopied] = useState(false)
   const [completed, setCompleted] = useState<string[]>([])
   const [connecting, setConnecting] = useState(false)
+  const [walletError, setWalletError] = useState('')
   const [remaining, setRemaining] = useState(() => Math.max(0, TGE_DATE - Date.now()))
   const contract = 'Coming soon'
 
@@ -33,23 +34,29 @@ export default function AirdropClient() {
 
   async function connectWallet() {
     setConnecting(true)
+    setWalletError('')
     try {
       const ethereum = (window as Window & { ethereum?: { request: (args: { method: string }) => Promise<string[]> } }).ethereum
       if (!ethereum) {
+        setWalletError('MetaMask was not detected. Install it to connect.')
         window.open('https://metamask.io/download/', '_blank', 'noopener,noreferrer')
         return
       }
       const accounts = await ethereum.request({ method: 'eth_requestAccounts' })
       if (accounts?.[0]) setWallet(`${accounts[0].slice(0, 6)}…${accounts[0].slice(-4)}`)
     } catch (error) {
-      console.error('[v0] wallet connection failed', error)
+        console.error('[v0] wallet connection failed', error)
+      setWalletError(error instanceof Error && error.message ? error.message : 'Wallet connection was cancelled.')
     } finally { setConnecting(false) }
   }
 
-  function copyContract() {
-    void navigator.clipboard.writeText(contract)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1500)
+  async function copyContract() {
+    if (contract === 'Coming soon') return
+    try {
+      await navigator.clipboard.writeText(contract)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch { setCopied(false) }
   }
 
   return (
@@ -57,7 +64,7 @@ export default function AirdropClient() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,#3a1f51_0%,transparent_38%),radial-gradient(circle_at_80%_35%,#132b56_0%,transparent_28%)]" />
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <a href="/" className="flex items-center gap-3"><Image src="/rat-logo.jpg" alt="$RAT" width={42} height={42} className="rounded-xl object-cover" priority /><span className="font-semibold tracking-tight">$RAT <span className="text-[#a78bfa]">Airdrop</span></span></a>
-        <button onClick={() => void connectWallet()} disabled={connecting} className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold backdrop-blur transition hover:bg-white/15 disabled:opacity-60"><Wallet size={15} />{connecting ? 'Connecting…' : wallet || 'Connect wallet'}</button>
+        <div className="flex flex-col items-end gap-1"><button onClick={() => void connectWallet()} disabled={connecting} className="flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold backdrop-blur transition hover:bg-white/15 disabled:opacity-60"><Wallet size={15} />{connecting ? 'Connecting…' : wallet || 'Connect wallet'}</button>{walletError && <p role="status" className="max-w-[190px] text-right text-[10px] text-rose-300">{walletError}</p>}</div>
       </header>
 
       <section className="relative z-10 mx-auto max-w-6xl px-5 pt-4 sm:px-8"><div className="relative overflow-hidden rounded-[1.75rem] border border-cyan-300/15 bg-gradient-to-r from-violet-400/10 via-fuchsia-300/10 to-cyan-300/10 p-4 shadow-[0_0_70px_rgba(139,92,246,.12)] sm:p-5"><div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-cyan-300/15 blur-3xl rat-pulse" /><div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.22em] text-cyan-200/80">Token generation event</p><h2 className="mt-1 text-lg font-bold text-white">$RAT goes live in</h2></div><div className="grid grid-cols-4 gap-2 text-center">{Object.entries(countdown).map(([label, value]) => <div key={label} className="min-w-[3.6rem] rounded-xl border border-white/10 bg-black/20 px-2 py-2"><div className="font-mono text-xl font-bold text-white">{String(value).padStart(2, '0')}</div><div className="mt-0.5 text-[9px] uppercase tracking-wider text-slate-400">{label}</div></div>)}</div></div></div></section>
