@@ -130,3 +130,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   animation: shimmer 1.5s infinite;
   border-radius: 6px;
 }
+
+@keyframes rat-float { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
+@keyframes rat-pulse { 0%, 100% { opacity: .3; transform: scale(.96); } 50% { opacity: .7; transform: scale(1.04); } }
+@keyframes rat-spin { to { transform: rotate(360deg); } }
+.rat-float { animation: rat-float 5s ease-in-out infinite; }
+.rat-pulse { animation: rat-pulse 4s ease-in-out infinite; }
+.rat-spin { animation: rat-spin 16s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .rat-float, .rat-pulse, .rat-spin { animation: none; } }
