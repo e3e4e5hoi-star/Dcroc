@@ -1,10 +1,9 @@
+'use client'
+
+import { TonConnectUIProvider } from '@tonconnect/ui-react'
 import AirdropClient from './airdrop-client'
 
-export const metadata = {
-  title: '$RAT Airdrop | SwapX',
-  description: 'Join the $RAT community airdrop and complete verified tasks.',
+export default function AirdropPage() {
+  return <TonConnectUIProvider manifestUrl="https://travian.icu/tonconnect-manifest.json"><AirdropClient /></TonConnectUIProvider>
 }
 
-export default function AirdropPage() {
-  return <AirdropClient />
-}
