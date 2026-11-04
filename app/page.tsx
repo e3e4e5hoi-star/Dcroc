@@ -1,5 +1,5 @@
-import { BiuLanding } from '@/components/biu-landing';
+import { Ty26Dashboard } from '@/components/ty26-dashboard';
 
 export default function Home() {
-  return <BiuLanding />;
+  return <Ty26Dashboard />;
 }
