@@ -4,10 +4,10 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: 'BIU Network — Independent Blockchain Infrastructure',
-  description: 'BIU Network is a proposed independent Avalanche L1 with BIU as its proposed native gas coin.',
+  description: 'BIU is a community token presented on the Robinhood network. Verify the contract address and network data before interacting.',
   openGraph: {
     title: 'BIU Network — Independent Blockchain Infrastructure',
-    description: 'A proposed independent EVM-compatible Avalanche L1 for builders.',
+    description: 'BIU token on Robinhood network — public contract reference and project information.',
     type: 'website',
   },
 };
