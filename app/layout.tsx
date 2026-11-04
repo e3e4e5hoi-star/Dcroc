@@ -4,10 +4,10 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: 'BIU Network — Independent Blockchain Infrastructure',
-  description: 'BIU is a community token presented on the Robinhood network. Verify the contract address and network data before interacting.',
+  description: 'CROC is a community token presented on the Robinhood network. Verify the contract address and network data before interacting.',
   openGraph: {
     title: 'BIU Network — Independent Blockchain Infrastructure',
-    description: 'BIU token on Robinhood network — public contract reference and project information.',
+    description: 'CROC token on Robinhood network — public contract reference and project information.',
     type: 'website',
   },
 };
